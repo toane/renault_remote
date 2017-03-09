@@ -13,14 +13,14 @@ uint8_t test_for_press_only(void);
 //#define nop() __asm__ __volatile__ ("nop \n\t")
 
 //0x01: mute,0x02:volp, 0x04:volm
-volatile uint8_t curbtn=0x01;
+volatile uint8_t curbtn=0x02;
 
 void setup() {
 	//LEDS
 	DDRB |= _BV(PB1);//led IR
 	PORTB|= _BV(PB1);//led IR allumee
 	DDRB |= _BV(PB3);//led visible
-	PORTB |= _BV(PB3);//led visible allumee
+	PORTB &=~ _BV(PB3);//led visible allumee
 
 	sei();
 	//set_sleep_mode(SLEEP_MODE_PWR_DOWN);
@@ -42,12 +42,13 @@ uint8_t read_btn(){
 	}else if (curbtn==0x04){
 		ret= ((PINB & (1<<PB4)) == 0);//lecture de PB4
 	}
-	*/
-
-	DDRB &=~_BV(PB2);//PB2 en entree
-	PORTB |=_BV(PB2);//pull-up actif
-	return ( (PINB & _BV(PB2)) == 0 );
-
+	 */
+	if (curbtn==0x02){
+		DDRB &=~_BV(PB2);//PB2 en entree
+		PORTB |=_BV(PB2);//pull-up actif
+		ret= ( (PINB & _BV(PB2)) == 0 );
+	}
+	return ret;
 }
 
 /*
@@ -111,10 +112,11 @@ ISR (WDT_vect){
 
 	//cycles curbtn through 0x01, 0x02, 0x04
 
+/*
 	if ((curbtn | 0b00000011)==0b00000011) {
 		curbtn=curbtn<<1;
 	}else{
 		curbtn=0x01;
 	}
-
+*/
 }
