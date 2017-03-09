@@ -13,7 +13,7 @@ uint8_t test_for_press_only(void);
 //#define nop() __asm__ __volatile__ ("nop \n\t")
 
 //0x01: mute,0x02:volp, 0x04:volm
-volatile uint8_t curbtn=0x02;
+volatile uint8_t curbtn=0x01;
 
 void setup() {
 	//LEDS
@@ -43,7 +43,7 @@ uint8_t read_btn(){
 		ret= ((PINB & (1<<PB4)) == 0);//lecture de PB4
 	}
 	 */
-	if (curbtn==0x02){
+	if (curbtn==0x01){
 		DDRB &=~_BV(PB2);//PB2 en entree
 		PORTB |=_BV(PB2);//pull-up actif
 		ret= ( (PINB & _BV(PB2)) == 0 );
@@ -99,19 +99,19 @@ int main() {
 }
 
 ISR (WDT_vect){
-	/*
-	if (test_for_press_only()==1){
-		PORTB ^= _BV(PB3);//flip led 1
-	}
-	 */
-
 	if (test_for_press_only()==1){
 		PORTB ^= _BV(PB3);//flip led 1
 	}
 	PORTB ^= _BV(PB1);//flip led 1
 
 	//cycles curbtn through 0x01, 0x02, 0x04
-
+	/*
+	if (curbtn <4) {
+		curbtn=curbtn<<1;
+	}else{
+		curbtn=0x01;
+	}
+	*/
 /*
 	if ((curbtn | 0b00000011)==0b00000011) {
 		curbtn=curbtn<<1;
