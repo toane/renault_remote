@@ -6,13 +6,13 @@
 uint8_t read_button_mute();
 uint8_t read_button_volp();
 uint8_t  read_button_volm();
-*/
+ */
 uint8_t  read_btn();
 uint8_t test_for_press_only(void);
 
 //#define nop() __asm__ __volatile__ ("nop \n\t")
 
-//01: mute, 02:volp, 04:volm
+//0x01: mute,0x02:volp, 0x04:volm
 volatile uint8_t curbtn=0x01;
 
 void setup() {
@@ -34,30 +34,21 @@ void setup() {
 
 uint8_t read_btn(){
 	uint8_t ret=0x00;
-
+	/*
 	if (curbtn==0x01){
-		//mute
-		DDRB &=~_BV(PB2);//PB2 en entree
-		PORTB |=_BV(PB2);//pull-up actif
 		ret=( (PINB & _BV(PB2)) == 0 );
 	}else if (curbtn==0x02){
-		//volp
-		DDRB |=_BV(PB2);//PB2 en sortie
-		PORTB &=~_BV(PB2);//PB2 a 0
-		DDRB &=~_BV(PB0);//PB0 en entree
-		PORTB |=_BV(PB0);//pull up sur PB0
 		ret= ( (PINB & _BV(PB0)) == 0 );
 	}else if (curbtn==0x04){
-		//volm
-		DDRB |=_BV(PB0);//PB0 en sortie
-		PORTB &=~_BV(PB0);//PB0 a 0
-		DDRB &=~_BV(PB4);//PB4 en entree
-		PORTB |=_BV(PB4);//pull up sur PB4
-		ret= ((PINB & (1<<PB4)) == 0);//lecture de PB0
+		ret= ((PINB & (1<<PB4)) == 0);//lecture de PB4
 	}
-	return ret;
-}
+	*/
 
+	DDRB &=~_BV(PB2);//PB2 en entree
+	PORTB |=_BV(PB2);//pull-up actif
+	return ( (PINB & _BV(PB2)) == 0 );
+
+}
 
 /*
 uint8_t read_button_mute(){
@@ -82,7 +73,7 @@ uint8_t  read_button_volm(){
 	PORTB |=_BV(PB4);//pull up sur PB4
 	return ((PINB & (1<<PB4)) == 0);//lecture de PB0
 }
-*/
+ */
 
 uint8_t test_for_press_only(void){
 	static uint8_t button_history = 0;
@@ -107,12 +98,21 @@ int main() {
 }
 
 ISR (WDT_vect){
+	/*
 	if (test_for_press_only()==1){
 		PORTB ^= _BV(PB3);//flip led 1
 	}
+	 */
 
-	if (curbtn<4){
-	curbtn=curbtn<<1;
+	if (test_for_press_only()==1){
+		PORTB ^= _BV(PB3);//flip led 1
+	}
+	PORTB ^= _BV(PB1);//flip led 1
+
+	//cycles curbtn through 0x01, 0x02, 0x04
+
+	if ((curbtn | 0b00000011)==0b00000011) {
+		curbtn=curbtn<<1;
 	}else{
 		curbtn=0x01;
 	}
