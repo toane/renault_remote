@@ -69,7 +69,6 @@ uint8_t read_btn(uint8_t  curbtn){
  * returns 1 if the button is considered pressed
  */
 uint8_t debounce(uint8_t  *button_history,uint8_t  curbtn){
-	//static uint8_t button_history = 0;
 	uint8_t pressed = 0;
 	*button_history = *button_history << 1;
 	*button_history |= read_btn(curbtn);
@@ -104,19 +103,5 @@ ISR (WDT_vect){
 	if (debounce(&volm_history,0x04)==1){
 		PORTB ^= _BV(PB1);//flip led 2
 	}
-
-	/*
-	if ((debounce(&mute_history,0x01)==1)|(debounce(&volp_history,0x02)==1)|(debounce(&volm_history,0x04)==1)){
-		PORTB ^= _BV(PB3);//flip led 1
-	}*/
-
-
-/*
-	for (int d=0x01;d<0x04;d<<1){
-		if (debounce(d)==1){
-			PORTB ^= _BV(PB1);//flip led 1
-		}
-	}
-*/
 
 }
