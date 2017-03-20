@@ -3,51 +3,45 @@
 #include <avr/interrupt.h>
 #include <avr/sleep.h>
 #define nop() __asm__ __volatile__ ("nop \n\t")
-/*
-uint8_t read_button_mute();
-uint8_t read_button_volp();
-uint8_t  read_button_volm();
- */
+
 uint8_t  read_btn(uint8_t);
 uint8_t debounce(uint8_t  *button_history,uint8_t);
+uint8_t mute_history=0;
+uint8_t volp_history=0;
+uint8_t volm_history=0;
+
+volatile uint8_t emit=0;
 
 void SetupPCM();
 void Pulse (int carrier, int gap);
 void SendSony (unsigned long code);
 void Transmit (int address, int command) ;
 
-//0x01: mute,0x02:volp, 0x04:volm
-//volatile uint8_t curbtn=0x01;
 
-uint8_t mute_history=0;
-uint8_t volp_history=0;
-uint8_t volm_history=0;
+//0x01: mute,0x02:volp, 0x04:volm
 
 // Remote control
 const int Address = 0x1E3A;
 const int ShutterCode = 0x2D;
 const int TwoSecsCode = 0x37;
 const int VideoCode = 0x48;
-/*
-const int top = 24;    // 1000000/25 = 40kHz
-const int match = 18;  // pulses with approx 25% mark/space ratio
-*/
+
 const int top = 24;    // 1000000/25 = 40kHz
 const int match = 18;  // pulses with approx 25% mark/space ratio
 
 void setup() {
 	//LEDS
 	DDRB |= _BV(PB1);//led IR
-	PORTB|= _BV(PB1);//led IR allumee
+	//PORTB|= _BV(PB1);//led IR allumee
 
 	DDRB |= _BV(PB3);//led visible
-	PORTB &=~ _BV(PB3);//led visible allumee
+	PORTB|= _BV(PB3);//led IR allumee
 
 	sei();
 	//set_sleep_mode(SLEEP_MODE_PWR_DOWN);
 	// Disable ADC to save power
 	ADCSRA &= ~(1<<ADEN);
-	//SetupPCM();
+	SetupPCM();
 	//SetupPinChange();
 	//watchdog configuration
 	WDTCR |= (1<<WDIE);//generate interrupt after each time out
@@ -132,22 +126,23 @@ void SendSony (unsigned long code) {
 
 void Transmit (int address, int command) {
 	unsigned long code = (unsigned long) address<<7 | command;
-	PORTB|= _BV(PB3);
+	//PORTB|= _BV(PB3);
 	SendSony(code);
 	_delay_ms(11);
 	SendSony(code);
-	PORTB&=~ _BV(PB3);
+	//PORTB&=~ _BV(PB3);
 }
 
 int main() {
-
 	//CLKPR = 0x80;
 	//CLKPR = 0 ;  // presc 1
-
 	setup();
 	while(1){
 		// Go to sleep
-		//Transmit(Address, ShutterCode);
+		if (emit==0x01){
+			emit=0x00;
+			Transmit(Address, ShutterCode);
+		}
 		//sleep_enable();
 		//sleep_cpu();
 	}
@@ -157,11 +152,13 @@ ISR (WDT_vect){
 
 	if (debounce(&volp_history,0x02)==1){
 		PORTB ^= _BV(PB3);//flip led 2
+
 	}
 
 	if (debounce(&mute_history,0x01)==1){
-		PORTB &= ~_BV(PB1);//turn off
-		PORTB &= ~_BV(PB3);//turn off
+		//PORTB &= ~_BV(PB1);//turn off
+		//PORTB &= ~_BV(PB3);//turn off
+		emit=0x01;
 	}
 
 	if (debounce(&volm_history,0x04)==1){
