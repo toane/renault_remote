@@ -10,6 +10,7 @@ uint8_t  read_button_volm();
  */
 uint8_t  read_btn(uint8_t);
 uint8_t debounce(uint8_t  *button_history,uint8_t);
+
 void SetupPCM();
 void Pulse (int carrier, int gap);
 void SendSony (unsigned long code);
@@ -27,14 +28,17 @@ const int Address = 0x1E3A;
 const int ShutterCode = 0x2D;
 const int TwoSecsCode = 0x37;
 const int VideoCode = 0x48;
-
+/*
+const int top = 24;    // 1000000/25 = 40kHz
+const int match = 18;  // pulses with approx 25% mark/space ratio
+*/
 const int top = 24;    // 1000000/25 = 40kHz
 const int match = 18;  // pulses with approx 25% mark/space ratio
 
 void setup() {
 	//LEDS
 	DDRB |= _BV(PB1);//led IR
-	//PORTB|= _BV(PB1);//led IR allumee
+	PORTB|= _BV(PB1);//led IR allumee
 
 	DDRB |= _BV(PB3);//led visible
 	PORTB &=~ _BV(PB3);//led visible allumee
@@ -43,10 +47,10 @@ void setup() {
 	//set_sleep_mode(SLEEP_MODE_PWR_DOWN);
 	// Disable ADC to save power
 	ADCSRA &= ~(1<<ADEN);
-	SetupPCM();
+	//SetupPCM();
 	//SetupPinChange();
 	//watchdog configuration
-	WDTCR |= (1<<WDTIE);//generate interrupt after each time out
+	WDTCR |= (1<<WDIE);//generate interrupt after each time out
 }
 
 /**
@@ -56,11 +60,13 @@ void setup() {
 uint8_t read_btn(uint8_t  curbtn){
 	uint8_t ret=0x00;
 	if (curbtn==0x01){
+		//poll Mute
 		DDRB &=~_BV(PB2);//PB2 en entree
 		PORTB |=_BV(PB2);//pull-up actif
 		nop();nop();nop();nop();
 		ret= ( (PINB & _BV(PB2)) == 0 );
 	} else if (curbtn==0x02){
+		//poll Volume +
 		DDRB &=~_BV(PB0);//PB0 en entree
 		PORTB |=_BV(PB0);//pull up sur PB0
 		DDRB |=_BV(PB2);//PB2 en sortie
@@ -68,6 +74,7 @@ uint8_t read_btn(uint8_t  curbtn){
 		nop();nop();nop();nop();
 		ret= ( (PINB & _BV(PB0)) == 0 );//lecture de PB0
 	} else if (curbtn==0x04){
+		//poll Volume -
 		DDRB &=~_BV(PB4);
 		PORTB |=_BV(PB4);
 		DDRB |=_BV(PB0);
@@ -98,7 +105,6 @@ void SetupPCM () {
 	TCCR0B = 1<<WGM02 | 1<<CS00;   // Fast PWM and divide by 1
 	OCR0A = top;                   // 40kHz
 	OCR0B = top;                   // Keep output low
-
 }
 
 void Pulse (int carrier, int gap) {
@@ -106,8 +112,8 @@ void Pulse (int carrier, int gap) {
 	OCR0B = match;  // Generate pulses
 	for (char i=0; i<2; i++) {
 		for (int c=0; c<count; c++) {
-			do ; while ((TIFR0 & 1<<TOV0) == 0);
-			TIFR0 = 1<<TOV0;
+			do ; while ((TIFR & 1<<TOV0) == 0);
+			TIFR = 1<<TOV0;
 		}
 		count = gap;
 		OCR0B = top;
@@ -134,10 +140,14 @@ void Transmit (int address, int command) {
 }
 
 int main() {
+
+	//CLKPR = 0x80;
+	//CLKPR = 0 ;  // presc 1
+
 	setup();
 	while(1){
 		// Go to sleep
-		Transmit(Address, ShutterCode);
+		//Transmit(Address, ShutterCode);
 		//sleep_enable();
 		//sleep_cpu();
 	}
