@@ -6,6 +6,8 @@
 
 uint8_t  read_btn(uint8_t);
 uint8_t debounce(uint8_t  *button_history,uint8_t);
+uint8_t getEncoderDirection(uint8_t val);
+
 uint8_t mute_history=0;
 uint8_t volp_history=0;
 uint8_t volm_history=0;
@@ -77,6 +79,22 @@ uint8_t read_btn(uint8_t  curbtn){
 		ret= ((PINB & (1<<PB4)) == 0);//lecture de PB4
 	}
 	return ret;
+}
+
+/***
+ * returns a direction code for the last movement from the encoder (1:dir A, 2: dir B)
+ * val: code for the current position(between j:0x00, b:0x01, v:0x02)
+ */
+uint8_t getEncoderDirection(uint8_t val){
+	static const uint8_t direction[6]={0,1,2,0,1,2};
+	static uint8_t hist=0xff;//rotation history
+
+	if ((hist & 0x0F) != val){//remplace 4 premiers bits par 0, compare avec val
+		hist = hist <<4;
+		hist |=val;
+	}
+
+	return 0;
 }
 
 /***
