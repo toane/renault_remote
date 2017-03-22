@@ -69,6 +69,7 @@ void updateWheel(uint8_t val){
 	if ((hist & 0x0F) != val){//compare les 4 derniers bits de hist avec val
 		hist = hist <<4;
 		hist |=val;
+		emit=0x01;
 	}
 
 	switch(val){
@@ -122,17 +123,26 @@ uint8_t read_btn(uint8_t  curbtn){
 	PORTB |=_BV(PB2);//PB2 a 1
 	PORTB &=~_BV(PB4);//PB4 a 0
 	PORTB |=_BV(PB5);//PB5 a 1
-	if ((PINB & _BV(PB3)) == 0 ){updateWheel(PRSJ);}//test si roue en position J
+	if ((PINB & _BV(PB3)) == 0 ){
+		updateWheel(PRSJ);
+		//emit=0x04;
+	}//test si roue en position J
 
 	PORTB &=~_BV(PB2);//PB2 a 0
 	PORTB |=_BV(PB4);//PB4 a 1
 	PORTB |=_BV(PB5);//PB5 a 1
-	if ((PINB & _BV(PB3)) == 0 ){updateWheel(PRSB);}//test si roue en position B
+	if ((PINB & _BV(PB3)) == 0 ){
+		updateWheel(PRSB);
+		//emit=0x02;
+	}//test si roue en position B
 
 	PORTB |=_BV(PB2);//PB2 a 1
 	PORTB |=_BV(PB4);//PB4 a 1
 	PORTB &=~_BV(PB5);//PB5 a 0
-	if ((PINB & _BV(PB3)) == 0 ){updateWheel(PRSV);}//test si roue en position V
+	if ((PINB & _BV(PB3)) == 0 ){
+		updateWheel(PRSV);
+		//emit=0x03;
+	}//test si roue en position V
 
 	return ret;
 }
@@ -208,28 +218,32 @@ int main() {
 		}*/
 
 		if (emit>0){
-				dir=emit;
-				emit=0;
-				for (char i=0; i<dir; i++) {
-					PORTB&=~_BV(PB1);//eteindre led
-					_delay_ms(250);
-					PORTB|=_BV(PB1);//allumer led
-					_delay_ms(250);
-				}
+			dir=emit;
+			emit=0;
+			for (char i=0; i<dir; i++) {
+				PORTB&=~_BV(PB1);//eteindre led
+				_delay_ms(200);
+				PORTB|=_BV(PB1);//allumer led
+				_delay_ms(200);
 			}
+			PORTB&=~_BV(PB1);//eteindre led
+			_delay_ms(50);
+			PORTB|=_BV(PB1);//allumer led
+		}
+
 
 		/*
 		if (turnDirection>0){
 			dir=turnDirection;
 			turnDirection=0;
 			for (char i=0; i<dir; i++) {
-				PORTB|=_BV(PB1);//allumer led
-				_delay_ms(250);
 				PORTB&=~_BV(PB1);//eteindre led
-				_delay_ms(250);
+				_delay_ms(200);
+				PORTB|=_BV(PB1);//allumer led
+				_delay_ms(200);
 			}
 		}
-		*/
+		 */
 		//sleep_enable();
 		//sleep_cpu();
 	}
@@ -239,18 +253,18 @@ ISR (WDT_vect){
 
 	if (debounce(&volp_history,0x02)==1){
 		//PORTB ^= _BV(PB3);//flip led 2
-		emit=0x02;
+		emit=0x03;
 	}
 
 	if (debounce(&mute_history,0x01)==1){
 		//PORTB &= ~_BV(PB1);//turn off
 		//PORTB &= ~_BV(PB3);//turn off
-		emit=0x01;
+		emit=0x02;
 	}
 
 	if (debounce(&volm_history,0x04)==1){
 		//PORTB ^= _BV(PB1);//flip led 2
-		emit=0x04;
+		emit=0x03;
 	}
 
 }
