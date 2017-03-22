@@ -4,9 +4,10 @@
 #include <avr/sleep.h>
 #define nop() __asm__ __volatile__ ("nop \n\t")
 
+void updateWheel(uint8_t val);
 uint8_t  read_btn(uint8_t);
 uint8_t debounce(uint8_t  *button_history,uint8_t);
-uint8_t getEncoderDirection(uint8_t val);
+
 
 uint8_t mute_history=0;
 uint8_t volp_history=0;
@@ -19,6 +20,13 @@ void Pulse (int carrier, int gap);
 void SendSony (unsigned long code);
 void Transmit (int address, int command) ;
 
+//rotary switch values
+const uint8_t LEFT=1;
+const uint8_t RIGHT=2;
+const uint8_t PRSJ=0x00;
+const uint8_t PRSB=0x01;
+const uint8_t PRSV=0x02;
+uint8_t  turnDirection=0;
 
 //0x01: mute,0x02:volp, 0x04:volm
 
@@ -34,19 +42,47 @@ const int match = 18;  // pulses with approx 25% mark/space ratio
 void setup() {
 	//LEDS
 	DDRB |= _BV(PB1);//led IR
-	//PORTB|= _BV(PB1);//led IR allumee
+	PORTB|= _BV(PB1);//led IR allumee
 
-	DDRB |= _BV(PB3);//led visible
-	PORTB|= _BV(PB3);//led IR allumee
+	DDRB &=~ _BV(PB3);
+	PORTB|= _BV(PB3);//pull up sur PB3 (marron)
 
 	sei();
 	//set_sleep_mode(SLEEP_MODE_PWR_DOWN);
 	// Disable ADC to save power
 	ADCSRA &= ~(1<<ADEN);
-	SetupPCM();
+	//SetupPCM();
 	//SetupPinChange();
 	//watchdog configuration
 	WDTCR |= (1<<WDIE);//generate interrupt after each time out
+}
+
+/***
+ * sets a global variable keeping the last movement from the encoder (1:dir A, 2: dir B)
+ * val: code for the current position(between j:0x00, b:0x01, v:0x02)
+ * transitions: Sens A( J->B, B->V, V-> J), Sens B (V->B, B->J, J->V)
+ */
+void updateWheel(uint8_t val){
+
+	static uint8_t hist=0xff;//rotation history
+
+	if ((hist & 0x0F) != val){//compare les 4 derniers bits de hist avec val
+		hist = hist <<4;
+		hist |=val;
+	}
+
+	switch(val){
+	case 1:turnDirection=LEFT;break;
+	case 18:turnDirection=LEFT;break;
+	case 32:turnDirection=LEFT;break;
+
+	case 33:turnDirection=RIGHT;break;
+	case 16:turnDirection=RIGHT;break;
+	case 2:turnDirection=RIGHT;break;
+
+	default:turnDirection=0;
+	}
+
 }
 
 /**
@@ -78,24 +114,32 @@ uint8_t read_btn(uint8_t  curbtn){
 		nop();nop();nop();nop();
 		ret= ((PINB & (1<<PB4)) == 0);//lecture de PB4
 	}
+
+	DDRB |=_BV(PB2);//PB2 en sortie
+	DDRB |=_BV(PB4);//PB4 en sortie
+	DDRB |=_BV(PB5);//PB5 en sortie
+
+	PORTB |=_BV(PB2);//PB2 a 1
+	PORTB &=~_BV(PB4);//PB4 a 0
+	PORTB |=_BV(PB5);//PB5 a 1
+	if ((PINB & _BV(PB3)) == 0 ){updateWheel(PRSJ);}//test si roue en position J
+
+	PORTB &=~_BV(PB2);//PB2 a 0
+	PORTB |=_BV(PB4);//PB4 a 1
+	PORTB |=_BV(PB5);//PB5 a 1
+	if ((PINB & _BV(PB3)) == 0 ){updateWheel(PRSB);}//test si roue en position B
+
+	PORTB |=_BV(PB2);//PB2 a 1
+	PORTB |=_BV(PB4);//PB4 a 1
+	PORTB &=~_BV(PB5);//PB5 a 0
+	if ((PINB & _BV(PB3)) == 0 ){updateWheel(PRSV);}//test si roue en position V
+
 	return ret;
 }
 
-/***
- * returns a direction code for the last movement from the encoder (1:dir A, 2: dir B)
- * val: code for the current position(between j:0x00, b:0x01, v:0x02)
- */
-uint8_t getEncoderDirection(uint8_t val){
-	static const uint8_t direction[6]={0,1,2,0,1,2};
-	static uint8_t hist=0xff;//rotation history
 
-	if ((hist & 0x0F) != val){//remplace 4 premiers bits par 0, compare avec val
-		hist = hist <<4;
-		hist |=val;
-	}
 
-	return 0;
-}
+
 
 /***
  * curbtn: one of 0x01,0x02,0x04, matches mute, vol+,vol-
@@ -155,12 +199,37 @@ int main() {
 	//CLKPR = 0x80;
 	//CLKPR = 0 ;  // presc 1
 	setup();
+	uint8_t dir =0;
 	while(1){
 		// Go to sleep
-		if (emit==0x01){
+		/*if (emit==0x01){
 			emit=0x00;
 			Transmit(Address, ShutterCode);
+		}*/
+
+		if (emit>0){
+				dir=emit;
+				emit=0;
+				for (char i=0; i<dir; i++) {
+					PORTB&=~_BV(PB1);//eteindre led
+					_delay_ms(250);
+					PORTB|=_BV(PB1);//allumer led
+					_delay_ms(250);
+				}
+			}
+
+		/*
+		if (turnDirection>0){
+			dir=turnDirection;
+			turnDirection=0;
+			for (char i=0; i<dir; i++) {
+				PORTB|=_BV(PB1);//allumer led
+				_delay_ms(250);
+				PORTB&=~_BV(PB1);//eteindre led
+				_delay_ms(250);
+			}
 		}
+		*/
 		//sleep_enable();
 		//sleep_cpu();
 	}
@@ -169,8 +238,8 @@ int main() {
 ISR (WDT_vect){
 
 	if (debounce(&volp_history,0x02)==1){
-		PORTB ^= _BV(PB3);//flip led 2
-
+		//PORTB ^= _BV(PB3);//flip led 2
+		emit=0x02;
 	}
 
 	if (debounce(&mute_history,0x01)==1){
@@ -180,7 +249,8 @@ ISR (WDT_vect){
 	}
 
 	if (debounce(&volm_history,0x04)==1){
-		PORTB ^= _BV(PB1);//flip led 2
+		//PORTB ^= _BV(PB1);//flip led 2
+		emit=0x04;
 	}
 
 }
