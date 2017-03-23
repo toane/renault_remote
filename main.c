@@ -122,23 +122,26 @@ uint8_t read_btn(uint8_t  curbtn){
 
 	PORTB &=~_BV(PB4);//PB4 a 0
 	PORTB |=_BV(PB2);//PB2 a 1
-	nop();nop();nop();nop();
+	nop();nop();
 	if ((PINB & _BV(PB3)) == 0 ){
 		updateWheel(PRSJ);
-		//rotPosPRSV=0;
+		rotPosPRSV=0;
 		//emit=0x04;
 	}//test si roue en position J
 
 	PORTB &=~_BV(PB2);//PB2 a 0
 	PORTB |=_BV(PB4);//PB4 a 1
-	nop();nop();nop();nop();
+	nop();nop();
 	if ((PINB & _BV(PB3)) == 0 ){
 		updateWheel(PRSB);
-		//rotPosPRSV=0;
+		rotPosPRSV=0;
 		//emit=0x02;
 	}//test si roue en position B
 
 	//if wheel not in PRSB or PRSJ position we assume it's on the third position
+	if (rotPosPRSV==PRSV){
+		updateWheel(PRSV);
+	}
 
 	/*
 	PORTB &=~_BV(PB5);//PB5 a 0
