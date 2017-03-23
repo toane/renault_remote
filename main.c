@@ -115,18 +115,21 @@ uint8_t read_btn(uint8_t  curbtn){
 		nop();nop();nop();nop();
 		ret= ((PINB & (1<<PB4)) == 0);//lecture de PB4
 	}
+/*
+	DDRB |=_BV(PB0);	PORTB |=_BV(PB0);//PB0 en sortie 1
+	DDRB |=_BV(PB2);PORTB |=_BV(PB2);//PB2 en sortie 1
 
-	DDRB |=_BV(PB2);//PB2 en sortie
-	DDRB |=_BV(PB4);//PB4 en sortie
-	DDRB |=_BV(PB5);//PB5 en sortie
+*/
+	DDRB |=_BV(PB4);
 
-	PORTB |=_BV(PB2);//PB2 a 1
 	PORTB &=~_BV(PB4);//PB4 a 0
+	PORTB |=_BV(PB2);//PB2 a 1
 	PORTB |=_BV(PB5);//PB5 a 1
 	if ((PINB & _BV(PB3)) == 0 ){
 		updateWheel(PRSJ);
 		//emit=0x04;
 	}//test si roue en position J
+
 
 	PORTB &=~_BV(PB2);//PB2 a 0
 	PORTB |=_BV(PB4);//PB4 a 1
@@ -136,13 +139,15 @@ uint8_t read_btn(uint8_t  curbtn){
 		//emit=0x02;
 	}//test si roue en position B
 
+
+	PORTB &=~_BV(PB5);//PB5 a 0
 	PORTB |=_BV(PB2);//PB2 a 1
 	PORTB |=_BV(PB4);//PB4 a 1
-	PORTB &=~_BV(PB5);//PB5 a 0
 	if ((PINB & _BV(PB3)) == 0 ){
 		updateWheel(PRSV);
 		//emit=0x03;
-	}//test si roue en position V
+	}//test si roue en position V ANOMALIE
+
 
 	return ret;
 }
