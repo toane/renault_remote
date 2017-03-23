@@ -92,6 +92,7 @@ void updateWheel(uint8_t val){
  */
 uint8_t read_btn(uint8_t  curbtn){
 	uint8_t ret=0x00;
+	uint8_t rotPosPRSV=PRSV;//toggled to 0 if wheel switch in PRSJ or PRSB position
 	if (curbtn==0x01){
 		//poll Mute
 		DDRB &=~_BV(PB2);//PB2 en entree
@@ -115,31 +116,31 @@ uint8_t read_btn(uint8_t  curbtn){
 		nop();nop();nop();nop();
 		ret= ((PINB & (1<<PB4)) == 0);//lecture de PB4
 	}
-/*
-	DDRB |=_BV(PB0);	PORTB |=_BV(PB0);//PB0 en sortie 1
-	DDRB |=_BV(PB2);PORTB |=_BV(PB2);//PB2 en sortie 1
 
-*/
-	DDRB |=_BV(PB4);
+	DDRB |=_BV(PB4);//PB4 en sortie
+	DDRB |=_BV(PB2);//PB2 en sortie
 
 	PORTB &=~_BV(PB4);//PB4 a 0
 	PORTB |=_BV(PB2);//PB2 a 1
-	PORTB |=_BV(PB5);//PB5 a 1
+	nop();nop();nop();nop();
 	if ((PINB & _BV(PB3)) == 0 ){
 		updateWheel(PRSJ);
+		//rotPosPRSV=0;
 		//emit=0x04;
 	}//test si roue en position J
 
-
 	PORTB &=~_BV(PB2);//PB2 a 0
 	PORTB |=_BV(PB4);//PB4 a 1
-	PORTB |=_BV(PB5);//PB5 a 1
+	nop();nop();nop();nop();
 	if ((PINB & _BV(PB3)) == 0 ){
 		updateWheel(PRSB);
+		//rotPosPRSV=0;
 		//emit=0x02;
 	}//test si roue en position B
 
+	//if wheel not in PRSB or PRSJ position we assume it's on the third position
 
+	/*
 	PORTB &=~_BV(PB5);//PB5 a 0
 	PORTB |=_BV(PB2);//PB2 a 1
 	PORTB |=_BV(PB4);//PB4 a 1
@@ -147,14 +148,10 @@ uint8_t read_btn(uint8_t  curbtn){
 		updateWheel(PRSV);
 		//emit=0x03;
 	}//test si roue en position V ANOMALIE
-
+	 */
 
 	return ret;
 }
-
-
-
-
 
 /***
  * curbtn: one of 0x01,0x02,0x04, matches mute, vol+,vol-
