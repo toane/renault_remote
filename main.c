@@ -8,7 +8,6 @@ void updateWheel(uint8_t val);
 uint8_t  read_btn(uint8_t);
 uint8_t debounce(uint8_t  *button_history,uint8_t);
 
-
 uint8_t mute_history=0;
 uint8_t volp_history=0;
 uint8_t volm_history=0;
@@ -63,26 +62,25 @@ void setup() {
  * transitions: Sens A( J->B, B->V, V-> J), Sens B (V->B, B->J, J->V)
  */
 void updateWheel(uint8_t val){
-
 	static uint8_t hist=0xff;//rotation history
-
 	if ((hist & 0x0F) != val){//compare les 4 derniers bits de hist avec val
 		hist = hist <<4;
 		hist |=val;
-		emit=0x01;
+
+		switch(hist){
+		case 1:turnDirection=LEFT;break;
+		case 18:turnDirection=LEFT;break;
+		case 32:turnDirection=LEFT;break;
+
+		case 33:turnDirection=RIGHT;break;
+		case 16:turnDirection=RIGHT;break;
+		case 2:turnDirection=RIGHT;break;
+
+		default:turnDirection=0;
+		}
+		emit=turnDirection;
 	}
 
-	switch(val){
-	case 1:turnDirection=LEFT;break;
-	case 18:turnDirection=LEFT;break;
-	case 32:turnDirection=LEFT;break;
-
-	case 33:turnDirection=RIGHT;break;
-	case 16:turnDirection=RIGHT;break;
-	case 2:turnDirection=RIGHT;break;
-
-	default:turnDirection=0;
-	}
 
 }
 
@@ -126,7 +124,6 @@ uint8_t read_btn(uint8_t  curbtn){
 	if ((PINB & _BV(PB3)) == 0 ){
 		updateWheel(PRSJ);
 		rotPosPRSV=0;
-		//emit=0x04;
 	}//test si roue en position J
 
 	PORTB &=~_BV(PB2);//PB2 a 0
@@ -135,24 +132,12 @@ uint8_t read_btn(uint8_t  curbtn){
 	if ((PINB & _BV(PB3)) == 0 ){
 		updateWheel(PRSB);
 		rotPosPRSV=0;
-		//emit=0x02;
 	}//test si roue en position B
 
 	//if wheel not in PRSB or PRSJ position we assume it's on the third position
 	if (rotPosPRSV==PRSV){
 		updateWheel(PRSV);
 	}
-
-	/*
-	PORTB &=~_BV(PB5);//PB5 a 0
-	PORTB |=_BV(PB2);//PB2 a 1
-	PORTB |=_BV(PB4);//PB4 a 1
-	if ((PINB & _BV(PB3)) == 0 ){
-		updateWheel(PRSV);
-		//emit=0x03;
-	}//test si roue en position V ANOMALIE
-	 */
-
 	return ret;
 }
 
@@ -216,12 +201,6 @@ int main() {
 	setup();
 	uint8_t dir =0;
 	while(1){
-		// Go to sleep
-		/*if (emit==0x01){
-			emit=0x00;
-			Transmit(Address, ShutterCode);
-		}*/
-
 		if (emit>0){
 			dir=emit;
 			emit=0;
@@ -231,26 +210,12 @@ int main() {
 				PORTB|=_BV(PB1);//allumer led
 				_delay_ms(200);
 			}
+			/*
 			PORTB&=~_BV(PB1);//eteindre led
 			_delay_ms(50);
 			PORTB|=_BV(PB1);//allumer led
+			*/
 		}
-
-
-		/*
-		if (turnDirection>0){
-			dir=turnDirection;
-			turnDirection=0;
-			for (char i=0; i<dir; i++) {
-				PORTB&=~_BV(PB1);//eteindre led
-				_delay_ms(200);
-				PORTB|=_BV(PB1);//allumer led
-				_delay_ms(200);
-			}
-		}
-		 */
-		//sleep_enable();
-		//sleep_cpu();
 	}
 }
 
