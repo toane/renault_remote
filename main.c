@@ -4,6 +4,16 @@
 #include <avr/sleep.h>
 #define nop() __asm__ __volatile__ ("nop \n\t")
 
+//Wired remote settings
+#define REMOTEPORT PORTB
+#define REMOTEDDR DDRB
+#define REMOTEPIN PINB
+#define REMOTE_RED PB0
+#define REMOTE_BLUE PB2
+#define REMOTE_BROWN PB3
+#define REMOTE_YELLOW PB4
+
+
 void updateWheel(uint8_t val);
 uint8_t  read_btn(uint8_t);
 uint8_t debounce(uint8_t  *button_history,uint8_t);
@@ -20,8 +30,8 @@ void SendSony (unsigned long code);
 void Transmit (int address, int command) ;
 
 //rotary switch values
-const uint8_t LEFT=1;
-const uint8_t RIGHT=2;
+const uint8_t RIGHT=1;
+const uint8_t LEFT=2;
 const uint8_t PRSJ=0x00;
 const uint8_t PRSB=0x01;
 const uint8_t PRSV=0x02;
@@ -43,8 +53,8 @@ void setup() {
 	DDRB |= _BV(PB1);//led IR
 	PORTB|= _BV(PB1);//led IR allumee
 
-	DDRB &=~ _BV(PB3);
-	PORTB|= _BV(PB3);//pull up sur PB3 (marron)
+	DDRB &=~ _BV(REMOTE_BROWN);
+	REMOTEPORT|= _BV(REMOTE_BROWN);//pull up sur PB3 (marron)
 
 	sei();
 	//set_sleep_mode(SLEEP_MODE_PWR_DOWN);
@@ -68,17 +78,18 @@ void updateWheel(uint8_t val){
 		hist |=val;
 
 		switch(hist){
-		case 1:turnDirection=LEFT;break;
-		case 18:turnDirection=LEFT;break;
-		case 32:turnDirection=LEFT;break;
 
-		case 33:turnDirection=RIGHT;break;
-		case 16:turnDirection=RIGHT;break;
-		case 2:turnDirection=RIGHT;break;
+		case 2:turnDirection=LEFT;break; // J -> V
+		case 16:turnDirection=LEFT;break;// B -> J
+		case 33:turnDirection=LEFT;break;// V -> B
 
-		default:turnDirection=0;
+		case 1:turnDirection=RIGHT;break;// J -> B
+		case 18:turnDirection=RIGHT;break;//B -> V
+		case 32:turnDirection=RIGHT;break;//V -> J
+
+		default:turnDirection=0;//in doubt, do nothing
 		}
-		emit=turnDirection;
+		emit=turnDirection;;
 	}
 
 
@@ -93,46 +104,48 @@ uint8_t read_btn(uint8_t  curbtn){
 	uint8_t rotPosPRSV=PRSV;//toggled to 0 if wheel switch in PRSJ or PRSB position
 	if (curbtn==0x01){
 		//poll Mute
-		DDRB &=~_BV(PB2);//PB2 en entree
-		PORTB |=_BV(PB2);//pull-up actif
+		REMOTEDDR &=~_BV(REMOTE_BLUE);//PB2 en entree
+		REMOTEPORT |=_BV(REMOTE_BLUE);//pull-up actif
 		nop();nop();nop();nop();
-		ret= ( (PINB & _BV(PB2)) == 0 );
+		ret= ( (REMOTEPIN & (1<<REMOTE_BLUE)) == 0 );
 	} else if (curbtn==0x02){
 		//poll Volume +
-		DDRB &=~_BV(PB0);//PB0 en entree
-		PORTB |=_BV(PB0);//pull up sur PB0
-		DDRB |=_BV(PB2);//PB2 en sortie
-		PORTB &=~_BV(PB2);//PB2 a 0
+		REMOTEDDR &=~_BV(REMOTE_RED);//PB0 en entree
+		REMOTEPORT |=_BV(REMOTE_RED);//pull up sur PB0
+		REMOTEDDR |=_BV(REMOTE_BLUE);//PB2 en sortie
+		REMOTEPORT &=~_BV(REMOTE_BLUE);//PB2 a 0
 		nop();nop();nop();nop();
-		ret= ( (PINB & _BV(PB0)) == 0 );//lecture de PB0
+		ret= ( (REMOTEPIN & (1<<REMOTE_RED)) == 0 );//lecture de PB0
 	} else if (curbtn==0x04){
 		//poll Volume -
-		DDRB &=~_BV(PB4);
-		PORTB |=_BV(PB4);
-		DDRB |=_BV(PB0);
-		PORTB &=~_BV(PB0);
+		REMOTEDDR &=~_BV(REMOTE_YELLOW);
+		REMOTEPORT |=_BV(REMOTE_YELLOW);
+		REMOTEDDR |=_BV(REMOTE_RED);
+		REMOTEPORT &=~_BV(REMOTE_RED);
 		nop();nop();nop();nop();
-		ret= ((PINB & (1<<PB4)) == 0);//lecture de PB4
+		ret= ((REMOTEPIN & (1<<REMOTE_YELLOW)) == 0);//lecture de PB4 WHAT IT THIS TODO
+		//ret= ((REMOTEPIN & _BV(REMOTE_RED)) == 0);//lecture de PB4 WHAT IT THIS TODO
 	}
 
-	DDRB |=_BV(PB4);//PB4 en sortie
-	DDRB |=_BV(PB2);//PB2 en sortie
+	REMOTEDDR |=_BV(REMOTE_YELLOW);//PB4 en sortie
+	REMOTEDDR |=_BV(REMOTE_BLUE);//PB2 en sortie
 
-	PORTB &=~_BV(PB4);//PB4 a 0
-	PORTB |=_BV(PB2);//PB2 a 1
+	REMOTEPORT &=~_BV(REMOTE_YELLOW);//PB4 a 0
+	REMOTEPORT |=_BV(REMOTE_BLUE);//PB2 a 1
 	nop();nop();
-	if ((PINB & _BV(PB3)) == 0 ){
+
+	if ((REMOTEPIN & (1<<REMOTE_BROWN)) == 0 ){
 		updateWheel(PRSJ);
 		rotPosPRSV=0;
-	}//test si roue en position J
+	}
 
-	PORTB &=~_BV(PB2);//PB2 a 0
-	PORTB |=_BV(PB4);//PB4 a 1
+	REMOTEPORT &=~_BV(REMOTE_BLUE);//PB2 a 0
+	REMOTEPORT |=_BV(REMOTE_YELLOW);//PB4 a 1
 	nop();nop();
-	if ((PINB & _BV(PB3)) == 0 ){
+	if ((REMOTEPIN & (1<<REMOTE_BROWN)) == 0 ){
 		updateWheel(PRSB);
 		rotPosPRSV=0;
-	}//test si roue en position B
+	}
 
 	//if wheel not in PRSB or PRSJ position we assume it's on the third position
 	if (rotPosPRSV==PRSV){
@@ -200,21 +213,24 @@ int main() {
 	//CLKPR = 0 ;  // presc 1
 	setup();
 	uint8_t dir =0;
+	uint8_t mul =0;
 	while(1){
-		if (emit>0){
+		if (emit>0) {
 			dir=emit;
+			mul=emit;
 			emit=0;
-			for (char i=0; i<dir; i++) {
+			for (	uint8_t i=0; i<dir; i++) {
 				PORTB&=~_BV(PB1);//eteindre led
 				_delay_ms(200);
 				PORTB|=_BV(PB1);//allumer led
-				_delay_ms(200);
+				_delay_ms(150);
+/*
+				if (mul==1){_delay_ms(300);}
+				else if (mul ==2){_delay_ms(150);}
+				*/
+
 			}
-			/*
-			PORTB&=~_BV(PB1);//eteindre led
-			_delay_ms(50);
-			PORTB|=_BV(PB1);//allumer led
-			*/
+			mul=0;
 		}
 	}
 }
