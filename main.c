@@ -12,8 +12,9 @@
 #define REMOTE_BLUE PB2
 #define REMOTE_BROWN PB3
 #define REMOTE_YELLOW PB4
+#define DAMPSIZE 16
 
-
+uint8_t checkEqualValues(unsigned char *arr,int size);
 void updateWheel(uint8_t val);
 uint8_t  read_btn(uint8_t);
 uint8_t debounce(uint8_t  *button_history,uint8_t);
@@ -66,19 +67,45 @@ void setup() {
 	WDTCR |= (1<<WDIE);//generate interrupt after each time out
 }
 
+/**
+ * checks if arr contains identical values
+ * */
+uint8_t checkEqualValues(unsigned char *arr,int n) {
+	uint8_t ret=1;
+	for(int i = 0; i < n - 1; i++)
+	{
+		if(arr[i] != arr[i + 1])
+			ret = 0;
+	}
+	return ret;
+}
+
 /***
  * sets a global variable keeping the last movement from the encoder (1:dir A, 2: dir B)
  * val: code for the current position(between j:0x00, b:0x01, v:0x02)
  * transitions: Sens A( J->B, B->V, V-> J), Sens B (V->B, B->J, J->V)
  */
-void updateWheel(uint8_t val){
+void updateWheel(uint8_t poscode){
 	static uint8_t hist=0xff;//rotation history
-	if ((hist & 0x0F) != val){//compare les 4 derniers bits de hist avec val
+
+	static unsigned char damp[DAMPSIZE];
+	static unsigned char didx=0;
+	static unsigned char add=0x0f;
+	damp[didx]=poscode;
+	if (checkEqualValues(damp,DAMPSIZE)){
+		add=damp[DAMPSIZE-1];
+	}
+	if (didx>=DAMPSIZE-1){
+		didx=0;
+	}
+	else {
+		didx++;
+	}
+
+	if ((hist & 0x0F) != add){//compare les 4 derniers bits de hist avec val
 		hist = hist <<4;
-		hist |=val;
-
+		hist |=add;
 		switch(hist){
-
 		case 2:turnDirection=LEFT;break; // J -> V
 		case 16:turnDirection=LEFT;break;// B -> J
 		case 33:turnDirection=LEFT;break;// V -> B
@@ -213,24 +240,16 @@ int main() {
 	//CLKPR = 0 ;  // presc 1
 	setup();
 	uint8_t dir =0;
-	uint8_t mul =0;
 	while(1){
 		if (emit>0) {
 			dir=emit;
-			mul=emit;
 			emit=0;
 			for (	uint8_t i=0; i<dir; i++) {
 				PORTB&=~_BV(PB1);//eteindre led
 				_delay_ms(200);
 				PORTB|=_BV(PB1);//allumer led
 				_delay_ms(150);
-/*
-				if (mul==1){_delay_ms(300);}
-				else if (mul ==2){_delay_ms(150);}
-				*/
-
 			}
-			mul=0;
 		}
 	}
 }
