@@ -3,6 +3,7 @@
 #include <avr/interrupt.h>
 #include <avr/sleep.h>
 #define nop() __asm__ __volatile__ ("nop \n\t")
+//IR code from http://www.technoblogy.com/show?VFT
 
 //Wired remote settings
 #define REMOTEPORT PORTB
@@ -14,6 +15,17 @@
 #define REMOTE_YELLOW PB4
 #define DAMPSIZE 16
 
+//time settings
+#define ONE_ACTIVE 660
+#define ONE_PAUSE 1470
+#define  ZERO_ACTIVE 640
+#define  ZERO_PAUSE 400
+
+void pulse_zero();
+void pulse_one();
+void sendCode(uint8_t code);
+void preamble();
+void transmit(uint8_t address,uint8_t code);
 uint8_t checkEqualValues(unsigned char *arr,int size);
 void updateWheel(uint8_t val);
 uint8_t  read_btn(uint8_t);
@@ -22,13 +34,7 @@ uint8_t debounce(uint8_t  *button_history,uint8_t);
 uint8_t mute_history=0;
 uint8_t volp_history=0;
 uint8_t volm_history=0;
-
-volatile uint8_t emit=0;
-
-void SetupPCM();
-void Pulse (int carrier, int gap);
-void SendSony (unsigned long code);
-void Transmit (int address, int command) ;
+uint8_t src1_history=0;
 
 //rotary switch values
 const uint8_t RIGHT=1;
@@ -36,35 +42,67 @@ const uint8_t LEFT=2;
 const uint8_t PRSJ=0x00;
 const uint8_t PRSB=0x01;
 const uint8_t PRSV=0x02;
-uint8_t  turnDirection=0;
+uint8_t  turnDirection=0;//is given a control code when detecting a wheel movement in either direction
 
 //0x01: mute,0x02:volp, 0x04:volm
 
+volatile uint8_t emit=0;
 // Remote control
-const int Address = 0x1E3A;
-const int ShutterCode = 0x2D;
-const int TwoSecsCode = 0x37;
-const int VideoCode = 0x48;
-
-const int top = 24;    // 1000000/25 = 40kHz
-const int match = 18;  // pulses with approx 25% mark/space ratio
+//const int JVC_ADDRESS = 0xF1;
+const int JVC_ADDRESS = 0x0F;
+const int JVC_VOLP = 0x21;
+const int JVC_VOLM = 0xA1;
+const int JVC_MUTE = 0x71;
+const int JVC_SRC1 = 0xFF;//0x11;//TODO
+const int JVC_F = 0x49;
+const int JVC_R = 0xC9;
 
 void setup() {
 	//LEDS
 	DDRB |= _BV(PB1);//led IR
-	PORTB|= _BV(PB1);//led IR allumee
+	PORTB &= ~_BV(PB1);//led IR eteinte
 
 	DDRB &=~ _BV(REMOTE_BROWN);
-	REMOTEPORT|= _BV(REMOTE_BROWN);//pull up sur PB3 (marron)
+	REMOTEPORT|= _BV(REMOTE_BROWN);//pull up sur PB3 (marron, contact commun molette)
 
 	sei();
 	//set_sleep_mode(SLEEP_MODE_PWR_DOWN);
-	// Disable ADC to save power
 	ADCSRA &= ~(1<<ADEN);
-	//SetupPCM();
-	//SetupPinChange();
 	//watchdog configuration
 	WDTCR |= (1<<WDIE);//generate interrupt after each time out
+}
+
+void pulse_zero () {
+	PORTB |=_BV(PB1);
+	_delay_us(ZERO_ACTIVE);
+	PORTB &=~_BV(PB1);
+	_delay_us(ZERO_PAUSE);
+}
+
+void pulse_one () {
+	PORTB |=_BV(PB1);
+	_delay_us(ONE_ACTIVE);
+	PORTB &=~_BV(PB1);
+	_delay_us(ONE_PAUSE);
+}
+
+void preamble(){
+	PORTB |=_BV(PB1);
+	_delay_us(8440);
+	PORTB &=~_BV(PB1);
+	_delay_us(4220);
+}
+
+void sendCode (uint8_t code) {
+	for (int Bit=7; Bit>-1; Bit--) {
+		if (code & ((unsigned long) 1<<Bit)) pulse_one(); else pulse_zero();
+	}
+}
+
+void transmit(uint8_t address,uint8_t code){
+	preamble();
+	sendCode(address);
+	//sendCode(code);
 }
 
 /**
@@ -87,7 +125,6 @@ uint8_t checkEqualValues(unsigned char *arr,int n) {
  */
 void updateWheel(uint8_t poscode){
 	static uint8_t hist=0xff;//rotation history
-
 	static unsigned char damp[DAMPSIZE];
 	static unsigned char didx=0;
 	static unsigned char add=0x0f;
@@ -106,20 +143,18 @@ void updateWheel(uint8_t poscode){
 		hist = hist <<4;
 		hist |=add;
 		switch(hist){
-		case 2:turnDirection=LEFT;break; // J -> V
-		case 16:turnDirection=LEFT;break;// B -> J
-		case 33:turnDirection=LEFT;break;// V -> B
+		case 2:turnDirection=JVC_F;break; // J -> V
+		case 16:turnDirection=JVC_F;break;// B -> J
+		case 33:turnDirection=JVC_F;break;// V -> B
 
-		case 1:turnDirection=RIGHT;break;// J -> B
-		case 18:turnDirection=RIGHT;break;//B -> V
-		case 32:turnDirection=RIGHT;break;//V -> J
+		case 1:turnDirection=JVC_R;break;// J -> B
+		case 18:turnDirection=JVC_R;break;//B -> V
+		case 32:turnDirection=JVC_R;break;//V -> J
 
 		default:turnDirection=0;//in doubt, do nothing
 		}
-		emit=turnDirection;;
+		//emit=turnDirection;;
 	}
-
-
 }
 
 /**
@@ -152,6 +187,14 @@ uint8_t read_btn(uint8_t  curbtn){
 		nop();nop();nop();nop();
 		ret= ((REMOTEPIN & (1<<REMOTE_YELLOW)) == 0);//lecture de PB4 WHAT IT THIS TODO
 		//ret= ((REMOTEPIN & _BV(REMOTE_RED)) == 0);//lecture de PB4 WHAT IT THIS TODO
+	} else if (curbtn==0x03){
+		//poll Source 1
+		REMOTEDDR |=_BV(REMOTE_RED);
+		REMOTEPORT |=_BV(REMOTE_RED);//rouge a 1
+		REMOTEDDR &=~_BV(REMOTE_YELLOW);
+		REMOTEPORT |=~_BV(REMOTE_YELLOW);//inchangé
+		nop();nop();nop();nop();
+		ret= ((REMOTEPIN & (1<<REMOTE_YELLOW)) == 0);//si rouge a 1 et yellow a 0 -> yellow a la masse-> source 1 presse
 	}
 
 	REMOTEDDR |=_BV(REMOTE_YELLOW);//PB4 en sortie
@@ -196,44 +239,6 @@ uint8_t debounce(uint8_t  *button_history,uint8_t  curbtn){
 	return pressed;
 }
 
-void SetupPCM () {
-	TCCR0A = 3<<COM0B0 | 3<<WGM00; // Inverted output on OC0B and Fast PWM
-	TCCR0B = 1<<WGM02 | 1<<CS00;   // Fast PWM and divide by 1
-	OCR0A = top;                   // 40kHz
-	OCR0B = top;                   // Keep output low
-}
-
-void Pulse (int carrier, int gap) {
-	int count = carrier;
-	OCR0B = match;  // Generate pulses
-	for (char i=0; i<2; i++) {
-		for (int c=0; c<count; c++) {
-			do ; while ((TIFR & 1<<TOV0) == 0);
-			TIFR = 1<<TOV0;
-		}
-		count = gap;
-		OCR0B = top;
-	}
-}
-
-void SendSony (unsigned long code) {
-	TCNT0 = 0;             // Start counting from 0
-	// Send Start pulse
-	Pulse(96, 24);
-	// Send 20 bits
-	for (int Bit=0; Bit<20; Bit++) {
-		if (code & ((unsigned long) 1<<Bit)) Pulse(48, 24); else Pulse(24, 24);
-	}
-}
-
-void Transmit (int address, int command) {
-	unsigned long code = (unsigned long) address<<7 | command;
-	//PORTB|= _BV(PB3);
-	SendSony(code);
-	_delay_ms(11);
-	SendSony(code);
-	//PORTB&=~ _BV(PB3);
-}
 
 int main() {
 	//CLKPR = 0x80;
@@ -241,6 +246,20 @@ int main() {
 	setup();
 	uint8_t dir =0;
 	while(1){
+		if (emit>0){
+			dir=emit;
+			emit=0;
+			transmit(JVC_ADDRESS,dir);
+		}
+
+		if (turnDirection>0){
+			dir=turnDirection;
+			turnDirection=0;
+			transmit(JVC_ADDRESS,dir);
+		}
+
+	}
+	/*
 		if (emit>0) {
 			dir=emit;
 			emit=0;
@@ -252,24 +271,26 @@ int main() {
 			}
 		}
 	}
+	 */
 }
 
 ISR (WDT_vect){
-
 	if (debounce(&volp_history,0x02)==1){
-		//PORTB ^= _BV(PB3);//flip led 2
-		emit=0x03;
+		emit=JVC_VOLP;
 	}
 
 	if (debounce(&mute_history,0x01)==1){
-		//PORTB &= ~_BV(PB1);//turn off
-		//PORTB &= ~_BV(PB3);//turn off
-		emit=0x02;
+		emit=JVC_VOLM;
 	}
 
 	if (debounce(&volm_history,0x04)==1){
-		//PORTB ^= _BV(PB1);//flip led 2
-		emit=0x03;
+		emit=JVC_MUTE;
 	}
 
+	if (debounce(&src1_history,0x05)==1){
+			emit=JVC_SRC1;
+		}
+
 }
+
+
