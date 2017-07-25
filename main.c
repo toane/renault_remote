@@ -259,19 +259,6 @@ int main() {
 		}
 
 	}
-	/*
-		if (emit>0) {
-			dir=emit;
-			emit=0;
-			for (	uint8_t i=0; i<dir; i++) {
-				PORTB&=~_BV(PB1);//eteindre led
-				_delay_ms(200);
-				PORTB|=_BV(PB1);//allumer led
-				_delay_ms(150);
-			}
-		}
-	}
-	 */
 }
 
 ISR (WDT_vect){
