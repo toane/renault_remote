@@ -3,7 +3,9 @@
 #include <avr/interrupt.h>
 #include <avr/sleep.h>
 #define nop() __asm__ __volatile__ ("nop \n\t")
-//IR code from http://www.technoblogy.com/show?VFT
+
+//PWM code from http://www.technoblogy.com/show?VFT
+const int top = 33;
 
 //Wired remote settings
 #define REMOTEPORT PORTB
@@ -21,28 +23,29 @@
 #define  ZERO_ACTIVE 640
 #define  ZERO_PAUSE 400
 
-void pulse_zero();
-void pulse_one();
 void sendCode(uint8_t code);
+void pulse(int carrier, int gap);
 void preamble();
 void transmit(uint8_t address,uint8_t code);
 uint8_t checkEqualValues(unsigned char *arr,int size);
 void updateWheel(uint8_t val);
 uint8_t  read_btn(uint8_t);
 uint8_t debounce(uint8_t  *button_history,uint8_t);
+void setupPCM () ;
 
 uint8_t mute_history=0;
 uint8_t volp_history=0;
 uint8_t volm_history=0;
 uint8_t src1_history=0;
 
-//rotary switch values
-const uint8_t RIGHT=1;
-const uint8_t LEFT=2;
+//wheel switch
+
+/*const uint8_t RIGHT=1;
+const uint8_t LEFT=2;*/
 const uint8_t PRSJ=0x00;
 const uint8_t PRSB=0x01;
 const uint8_t PRSV=0x02;
-uint8_t  turnDirection=0;//is given a control code when detecting a wheel movement in either direction
+uint8_t  turnDirection=0;//is given a control code when detecting a wheel movement in either direction (JVC_R or JVC_F )
 
 //0x01: mute,0x02:volp, 0x04:volm
 
@@ -59,8 +62,8 @@ const int JVC_R = 0xC9;
 
 void setup() {
 	//LEDS
-	DDRB |= _BV(PB1);//led IR
-	PORTB &= ~_BV(PB1);//led IR eteinte
+	DDRB |= _BV(PB1);
+	PORTB &= ~_BV(PB1);//PB1 en sortie, inactif
 
 	DDRB &=~ _BV(REMOTE_BROWN);
 	REMOTEPORT|= _BV(REMOTE_BROWN);//pull up sur PB3 (marron, contact commun molette)
@@ -72,18 +75,23 @@ void setup() {
 	WDTCR |= (1<<WDIE);//generate interrupt after each time out
 }
 
-void pulse_zero () {
-	PORTB |=_BV(PB1);
-	_delay_us(ZERO_ACTIVE);
-	PORTB &=~_BV(PB1);
-	_delay_us(ZERO_PAUSE);
+void setupPCM () {
+	TCCR0A = 1<<COM0B1 | 3<<WGM00; // Inverted output on OC0B and Fast PWM
+	TCCR0B = 1<<WGM02 | 1<<CS01 | 1<<CS00;   // Fast PWM and divide by 64
+	OCR0B = top;                   // Keep output low
 }
 
-void pulse_one () {
-	PORTB |=_BV(PB1);
-	_delay_us(ONE_ACTIVE);
-	PORTB &=~_BV(PB1);
-	_delay_us(ONE_PAUSE);
+void pulse (int carrier, int gap) {
+	int count = carrier;
+	OCR0B = 0;  // Generate pulses
+	for (char i=0; i<2; i++) {
+		for (int c=0; c<count; c++) {
+			do ; while ((TIFR & 1<<TOV0) == 0);
+			TIFR = 1<<TOV0;
+		}
+		count = gap;
+		OCR0B = top;
+	}
 }
 
 void preamble(){
@@ -95,7 +103,7 @@ void preamble(){
 
 void sendCode (uint8_t code) {
 	for (int Bit=7; Bit>-1; Bit--) {
-		if (code & ((unsigned long) 1<<Bit)) pulse_one(); else pulse_zero();
+		if (code & ((unsigned long) 1<<Bit)) pulse(10, 33); else pulse(10, 17);
 	}
 }
 
