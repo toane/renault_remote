@@ -5,7 +5,7 @@
 #define nop() __asm__ __volatile__ ("nop \n\t")
 
 //PWM code from http://www.technoblogy.com/show?VFT
-const int top = 33;
+//const int top = 33;
 
 //Wired remote settings
 #define REMOTEPORT PORTB
@@ -16,12 +16,6 @@ const int top = 33;
 #define REMOTE_BROWN PB3
 #define REMOTE_YELLOW PB4
 #define DAMPSIZE 16
-
-//time settings
-#define ONE_ACTIVE 660
-#define ONE_PAUSE 1470
-#define  ZERO_ACTIVE 640
-#define  ZERO_PAUSE 400
 
 void sendCode(uint8_t code);
 void pulse(int carrier, int gap);
@@ -60,37 +54,47 @@ const int JVC_SRC1 = 0xFF;//0x11;//TODO
 const int JVC_F = 0x49;
 const int JVC_R = 0xC9;
 
+
+const int top = 24;    // 1000000/25 = 40kHz
+const int match = 18;
+
 void setup() {
 	//LEDS
-	DDRB |= _BV(PB1);
-	PORTB &= ~_BV(PB1);//PB1 en sortie, inactif
+	DDRB |= _BV(PB1);//PB1 en sortie,
+	//PORTB &= ~_BV(PB1);//PB1  inactif
 
 	DDRB &=~ _BV(REMOTE_BROWN);
 	REMOTEPORT|= _BV(REMOTE_BROWN);//pull up sur PB3 (marron, contact commun molette)
 
 	sei();
+
+	setupPCM();
+
 	//set_sleep_mode(SLEEP_MODE_PWR_DOWN);
-	ADCSRA &= ~(1<<ADEN);
+	//ADCSRA &= ~(1<<ADEN);
 	//watchdog configuration
 	WDTCR |= (1<<WDIE);//generate interrupt after each time out
+
 }
 
 void setupPCM () {
-	TCCR0A = 1<<COM0B1 | 3<<WGM00; // Inverted output on OC0B and Fast PWM
-	TCCR0B = 1<<WGM02 | 1<<CS01 | 1<<CS00;   // Fast PWM and divide by 64
-	OCR0B = top;                   // Keep output low
+	TCCR0A = 1<<COM0B0 |1<<WGM01; // CTC Mode, toggle OC0B on compare match
+	TCCR0B = 1<<CS01;  // prescaler 8
+	/*
+	TCCR0A = 3<<COM0B0 | 3<<WGM00; // Inverted output on OC0B and Fast PWM
+	TCCR0B = 1<<WGM02 | 1<<CS00;   // Fast PWM and divide by 1
+	OCR0A = top;                   // 40kHz
+	OCR0B = top;
+*/
 }
 
-void pulse (int carrier, int gap) {
-	int count = carrier;
-	OCR0B = 0;  // Generate pulses
+void pulse (int high, int low) {
+	OCR0A = high;  // Generate pulses
 	for (char i=0; i<2; i++) {
-		for (int c=0; c<count; c++) {
-			do ; while ((TIFR & 1<<TOV0) == 0);
-			TIFR = 1<<TOV0;
-		}
-		count = gap;
-		OCR0B = top;
+			//attendre interruption
+			do ; while ((TIFR & 1<<OCF0A) == 0);
+			TIFR = 1<<OCF0A;
+		OCR0A = low;
 	}
 }
 
@@ -102,13 +106,14 @@ void preamble(){
 }
 
 void sendCode (uint8_t code) {
+//	TCNT0=0;
 	for (int Bit=7; Bit>-1; Bit--) {
-		if (code & ((unsigned long) 1<<Bit)) pulse(10, 33); else pulse(10, 17);
+		if (code & ((unsigned long) 1<<Bit)) pulse(82, 184); else pulse(80, 50);
 	}
 }
 
 void transmit(uint8_t address,uint8_t code){
-	preamble();
+	//preamble();
 	sendCode(address);
 	//sendCode(code);
 }
@@ -192,7 +197,7 @@ uint8_t read_btn(uint8_t  curbtn){
 		REMOTEPORT |=_BV(REMOTE_YELLOW);
 		REMOTEDDR |=_BV(REMOTE_RED);
 		REMOTEPORT &=~_BV(REMOTE_RED);
-		nop();nop();nop();nop();
+		nop();nop();nop();nop(); //nops make sure the ports have time to settle to their new state before testing
 		ret= ((REMOTEPIN & (1<<REMOTE_YELLOW)) == 0);//lecture de PB4 WHAT IT THIS TODO
 		//ret= ((REMOTEPIN & _BV(REMOTE_RED)) == 0);//lecture de PB4 WHAT IT THIS TODO
 	} else if (curbtn==0x03){
@@ -250,7 +255,7 @@ uint8_t debounce(uint8_t  *button_history,uint8_t  curbtn){
 
 int main() {
 	//CLKPR = 0x80;
-	//CLKPR = 0 ;  // presc 1
+	//CLKPR = 1 ;  // presc 2
 	setup();
 	uint8_t dir =0;
 	while(1){
@@ -283,8 +288,8 @@ ISR (WDT_vect){
 	}
 
 	if (debounce(&src1_history,0x05)==1){
-			emit=JVC_SRC1;
-		}
+		emit=JVC_SRC1;
+	}
 
 }
 
