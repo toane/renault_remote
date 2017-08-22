@@ -75,26 +75,25 @@ void setup() {
 
 }
 
+
 void setupPCM () {
-	TCCR0A = 1<<COM0B0 |1<<WGM01; // CTC Mode, toggle OC0B on compare match
 	TCCR0B = 1<<CS01;  // prescaler 8
+	TCCR0A = 1<<COM0B0 |1<<WGM01; // CTC Mode, toggle OC0B on compare match
 }
 
 void stopPCM () {
-	TCCR0A &= ~(1<<COM0B0);
 	TCCR0A &= ~(1<<WGM01);
+	TCCR0A &= ~(1<<COM0B0);
 }
 //TODO: demarrer les pulsations lors de l'etat bas
 void pulse (int high, int low) {
-	setupPCM();
-	OCR0A = high;  // Generate pulses
 	for (char i=0; i<2; i++) {
-			//attendre interruption
-			do ; while ((TIFR & 1<<OCF0A) == 0);
-			TIFR = 1<<OCF0A;
+		//attendre interruption
+		do ; while ((TIFR & 1<<OCF0A) == 0);
+		TIFR = 1<<OCF0A;
 		OCR0A = low;
 	}
-stopPCM();
+
 }
 
 void preamble(){
@@ -112,9 +111,11 @@ void sendCode (uint8_t code) {
 }
 
 void transmit(uint8_t address,uint8_t code){
+	setupPCM();
 	//preamble();
 	sendCode(address);
 	//sendCode(code);
+	stopPCM();
 }
 
 /**
