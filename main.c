@@ -26,6 +26,7 @@ void updateWheel(uint8_t val);
 uint8_t  read_btn(uint8_t);
 uint8_t debounce(uint8_t  *button_history,uint8_t);
 void setupPCM () ;
+void stopPCM () ;
 
 uint8_t mute_history=0;
 uint8_t volp_history=0;
@@ -65,11 +66,8 @@ void setup() {
 
 	DDRB &=~ _BV(REMOTE_BROWN);
 	REMOTEPORT|= _BV(REMOTE_BROWN);//pull up sur PB3 (marron, contact commun molette)
-
 	sei();
-
-	setupPCM();
-
+	//setupPCM();
 	//set_sleep_mode(SLEEP_MODE_PWR_DOWN);
 	//ADCSRA &= ~(1<<ADEN);
 	//watchdog configuration
@@ -80,15 +78,15 @@ void setup() {
 void setupPCM () {
 	TCCR0A = 1<<COM0B0 |1<<WGM01; // CTC Mode, toggle OC0B on compare match
 	TCCR0B = 1<<CS01;  // prescaler 8
-	/*
-	TCCR0A = 3<<COM0B0 | 3<<WGM00; // Inverted output on OC0B and Fast PWM
-	TCCR0B = 1<<WGM02 | 1<<CS00;   // Fast PWM and divide by 1
-	OCR0A = top;                   // 40kHz
-	OCR0B = top;
-*/
 }
 
+void stopPCM () {
+	TCCR0A &= ~(1<<COM0B0);
+	TCCR0A &= ~(1<<WGM01);
+}
+//TODO: demarrer les pulsations lors de l'etat bas
 void pulse (int high, int low) {
+	setupPCM();
 	OCR0A = high;  // Generate pulses
 	for (char i=0; i<2; i++) {
 			//attendre interruption
@@ -96,6 +94,7 @@ void pulse (int high, int low) {
 			TIFR = 1<<OCF0A;
 		OCR0A = low;
 	}
+stopPCM();
 }
 
 void preamble(){
@@ -106,7 +105,7 @@ void preamble(){
 }
 
 void sendCode (uint8_t code) {
-//	TCNT0=0;
+	TCNT0=0;
 	for (int Bit=7; Bit>-1; Bit--) {
 		if (code & ((unsigned long) 1<<Bit)) pulse(82, 184); else pulse(80, 50);
 	}
