@@ -75,6 +75,17 @@ void setup() {
 
 }
 
+/*
+void preamble(){
+	TCNT0=0;
+	TCCR0B = 1<<CS01 | 1 << CS00;  // prescaler 64
+	TCCR0A = 1<<COM0B0 |1<<WGM01;
+	OCR0A=134;
+	do ; while ((TIFR & 1<<OCF0A) == 0);
+	TIFR = 1<<OCF0A;
+	OCR0A = 64;
+}
+*/
 
 void setupPCM () {
 	TCCR0B = 1<<CS01;  // prescaler 8
@@ -87,20 +98,21 @@ void stopPCM () {
 }
 //TODO: demarrer les pulsations lors de l'etat bas
 void pulse (int high, int low) {
+	OCR0A=high;
 	for (char i=0; i<2; i++) {
 		//attendre interruption
 		do ; while ((TIFR & 1<<OCF0A) == 0);
 		TIFR = 1<<OCF0A;
 		OCR0A = low;
 	}
-
 }
+
 
 void preamble(){
 	PORTB |=_BV(PB1);
-	_delay_us(8440);
+	_delay_us(8500);
 	PORTB &=~_BV(PB1);
-	_delay_us(4220);
+	_delay_us(4000);
 }
 
 void sendCode (uint8_t code) {
@@ -111,8 +123,8 @@ void sendCode (uint8_t code) {
 }
 
 void transmit(uint8_t address,uint8_t code){
-	setupPCM();
 	//preamble();
+	setupPCM();
 	sendCode(address);
 	//sendCode(code);
 	stopPCM();
