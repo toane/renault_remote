@@ -5,7 +5,6 @@
 #define nop() __asm__ __volatile__ ("nop \n\t")
 
 //PWM code from http://www.technoblogy.com/show?VFT
-//const int top = 33;
 
 //Wired remote settings
 #define REMOTEPORT PORTB
@@ -55,10 +54,6 @@ const int JVC_SRC1 = 0xFF;//0x11;//TODO
 const int JVC_F = 0x49;
 const int JVC_R = 0xC9;
 
-
-const int top = 24;    // 1000000/25 = 40kHz
-const int match = 18;
-
 void setup() {
 	//LEDS
 	DDRB |= _BV(PB1);//PB1 en sortie,
@@ -85,26 +80,38 @@ void preamble(){
 	TIFR = 1<<OCF0A;
 	OCR0A = 64;
 }
-*/
+ */
 
 void setupPCM () {
-	TCCR0B = 1<<CS01;  // prescaler 8
-	TCCR0A = 1<<COM0B0 |1<<WGM01; // CTC Mode, toggle OC0B on compare match
+	//TCCR0B = 1<<CS01;  // prescaler 8
+	//TCCR0A = 1<<COM0B0 |1<<WGM01; // CTC Mode, toggle OC0B on compare match
+	TCCR0A = (1<<COM0B1) | (1<<WGM01); //CTC Mode, Clear OC0B on compare match
+	TCCR0B = (1<<CS01) | (1<<FOC0B);
+	TIFR = (1<<OCF0A);//CLEAR OCF0A
+	OCR0A=0xFF;
 }
 
 void stopPCM () {
-	TCCR0A &= ~(1<<WGM01);
-	TCCR0A &= ~(1<<COM0B0);
+	TCCR0A =0;
 }
-//TODO: demarrer les pulsations lors de l'etat bas
+
 void pulse (int high, int low) {
-	OCR0A=high;
+	/*OCR0A=high;
 	for (char i=0; i<2; i++) {
-		//attendre interruption
+		//wait for flag
 		do ; while ((TIFR & 1<<OCF0A) == 0);
 		TIFR = 1<<OCF0A;
 		OCR0A = low;
 	}
+	 */
+	TCCR0A = (1<<COM0B1)| (1<<COM0B0);//set on compare
+	OCR0A=high;
+	do ; while ((TIFR & 1<<OCF0A) == 0);
+	TIFR = 1<<OCF0A;
+	TCCR0A &= ~(1<<COM0B0);//clear on compare
+	OCR0A=low;
+	for(;(TIFR&1<<OCF0A) == 0;);
+	TIFR=1<<OCF0A;
 }
 
 
