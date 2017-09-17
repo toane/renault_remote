@@ -83,12 +83,12 @@ void preamble(){
  */
 
 void setupPCM () {
-	//TCCR0B = 1<<CS01;  // prescaler 8
-	//TCCR0A = 1<<COM0B0 |1<<WGM01; // CTC Mode, toggle OC0B on compare match
-	TCCR0A = (1<<COM0B1) | (1<<WGM01); //CTC Mode, Clear OC0B on compare match
-	TCCR0B = (1<<CS01) | (1<<FOC0B);
+	TCCR0B = 1<<CS01;  // prescaler 8
+	TCCR0A = 1<<COM0B0 |1<<WGM01; // CTC Mode, toggle OC0B on compare match
+	//TCCR0A = (1<<COM0B1) | (1<<WGM01); //CTC Mode, Clear OC0B on compare match
+	//TCCR0B = (1<<CS01) | (1<<FOC0B);
 	TIFR = (1<<OCF0A);//CLEAR OCF0A
-	OCR0A=0xFF;
+	//OCR0A=0xFF;
 }
 
 void stopPCM () {
@@ -96,22 +96,15 @@ void stopPCM () {
 }
 
 void pulse (int high, int low) {
-	/*OCR0A=high;
+	//TCCR0A = (1<<COM0B1)| (1<<COM0B0);//set on compare
+	OCR0A=high;
 	for (char i=0; i<2; i++) {
 		//wait for flag
 		do ; while ((TIFR & 1<<OCF0A) == 0);
 		TIFR = 1<<OCF0A;
+		//TCCR0A &= ~(1<<COM0B0);//clear on compare
 		OCR0A = low;
 	}
-	 */
-	TCCR0A = (1<<COM0B1)| (1<<COM0B0);//set on compare
-	OCR0A=high;
-	do ; while ((TIFR & 1<<OCF0A) == 0);
-	TIFR = 1<<OCF0A;
-	TCCR0A &= ~(1<<COM0B0);//clear on compare
-	OCR0A=low;
-	for(;(TIFR&1<<OCF0A) == 0;);
-	TIFR=1<<OCF0A;
 }
 
 
@@ -125,7 +118,7 @@ void preamble(){
 void sendCode (uint8_t code) {
 	TCNT0=0;
 	for (int Bit=7; Bit>-1; Bit--) {
-		if (code & ((unsigned long) 1<<Bit)) pulse(82, 184); else pulse(80, 50);
+		if (code & ((unsigned long) 1<<Bit)) pulse(184, 82); else pulse(50, 80);
 	}
 }
 
@@ -312,4 +305,7 @@ ISR (WDT_vect){
 
 }
 
+/*Why not use fast PWM mode instead, since it has well defined levels, instead o toggle and messing around with force output compare? Moreover, in PWM modes the OCR0A and B registers are buffered, so you can load the values for the next pulse at any time.
 
+That is, set fast PWM with OCR0A as TOP in non-inverted mode, and changing the pin on match with OCR0B. Load OCR0A with low+high, and OCR0B with high. Update OCR0A and B with the next bit values on compare match with OCR0B. These will be buffered and auto-loaded on terminal count.
+*/
