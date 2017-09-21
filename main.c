@@ -16,7 +16,7 @@
 #define REMOTE_YELLOW PB4
 #define DAMPSIZE 16
 
-void sendCode(uint8_t code);
+void sendCode(unsigned long code);
 void pulse(int carrier, int gap);
 void preamble();
 void transmit(uint8_t address,uint8_t code);
@@ -45,8 +45,8 @@ uint8_t  turnDirection=0;//is given a control code when detecting a wheel moveme
 
 volatile uint8_t emit=0;
 // Remote control
-//const int JVC_ADDRESS = 0xF1;
-const int JVC_ADDRESS = 0x0F;
+const int JVC_ADDRESS = 0xF1;
+//const int JVC_ADDRESS = 0x0F;
 const int JVC_VOLP = 0x21;
 const int JVC_VOLM = 0xA1;
 const int JVC_MUTE = 0x71;
@@ -83,30 +83,21 @@ void preamble(){
  */
 
 void setupPCM () {
-	TCCR0B = 1<<CS01;  // prescaler 8
-	TCCR0A = 1<<COM0B0 |1<<WGM01; // CTC Mode, toggle OC0B on compare match
-	//TCCR0A = (1<<COM0B1) | (1<<WGM01); //CTC Mode, Clear OC0B on compare match
+	//TCCR0B = 1<<CS01;  // prescaler 8
+	//TCCR0A = 1<<COM0B0 |1<<WGM01; // CTC Mode, toggle OC0B on compare match
+
 	//TCCR0B = (1<<CS01) | (1<<FOC0B);
-	TIFR = (1<<OCF0A);//CLEAR OCF0A
-	//OCR0A=0xFF;
+	//TCCR0A = (1<<COM0B1) |(1<<WGM01); //CTC Mode, Clear OC0B on compare match
+	//TIFR = (1<<OCF0A);
+
+	//fast pwm method
+	TCCR0A = (1<<WGM01)| (1<<WGM00)|(1<<COM0B1);
+	TCCR0B = (1<<WGM02)|( 1<<CS01);
 }
 
 void stopPCM () {
 	TCCR0A =0;
 }
-
-void pulse (int high, int low) {
-	//TCCR0A = (1<<COM0B1)| (1<<COM0B0);//set on compare
-	OCR0A=high;
-	for (char i=0; i<2; i++) {
-		//wait for flag
-		do ; while ((TIFR & 1<<OCF0A) == 0);
-		TIFR = 1<<OCF0A;
-		//TCCR0A &= ~(1<<COM0B0);//clear on compare
-		OCR0A = low;
-	}
-}
-
 
 void preamble(){
 	PORTB |=_BV(PB1);
@@ -115,18 +106,27 @@ void preamble(){
 	_delay_us(4000);
 }
 
-void sendCode (uint8_t code) {
+void sendCode (unsigned long code) {
 	TCNT0=0;
 	for (int Bit=7; Bit>-1; Bit--) {
-		if (code & ((unsigned long) 1<<Bit)) pulse(184, 82); else pulse(50, 80);
+		if (code & (unsigned long)(1<<Bit)) {
+			OCR0A=255;
+			OCR0B=80;
+		}
+		else {
+			OCR0A=130;
+			OCR0B=80;
+		};
+		do ; while ((TIFR & 1<<OCF0B) == 0);
+		TIFR = 1<<OCF0B;
 	}
 }
 
 void transmit(uint8_t address,uint8_t code){
-	//preamble();
 	setupPCM();
-	sendCode(address);
-	//sendCode(code);
+	//sendCode(code+(address<<8));
+	//sendCode(0x00+(JVC_ADDRESS<<8));
+	sendCode((unsigned long) JVC_ADDRESS);
 	stopPCM();
 }
 
@@ -305,7 +305,12 @@ ISR (WDT_vect){
 
 }
 
-/*Why not use fast PWM mode instead, since it has well defined levels, instead o toggle and messing around with force output compare? Moreover, in PWM modes the OCR0A and B registers are buffered, so you can load the values for the next pulse at any time.
+/*Why not use fast PWM mode instead, since it has well defined levels, instead o toggle and messing around with force output compare?
+ *Moreover, in PWM modes the OCR0A and B registers are buffered, so you can load the values for the next pulse at any time.
 
-That is, set fast PWM with OCR0A as TOP in non-inverted mode, and changing the pin on match with OCR0B. Load OCR0A with low+high, and OCR0B with high. Update OCR0A and B with the next bit values on compare match with OCR0B. These will be buffered and auto-loaded on terminal count.
-*/
+That is, set fast PWM with OCR0A as TOP in non-inverted mode,
+and changing the pin on match with OCR0B.
+Load OCR0A with low+high, and OCR0B with high.
+Update OCR0A and B with the next bit values on compare match with OCR0B.
+These will be buffered and auto-loaded on terminal count.
+ */
