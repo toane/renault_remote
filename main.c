@@ -45,7 +45,7 @@ uint8_t  turnDirection=0;//is given a control code when detecting a wheel moveme
 
 volatile uint8_t emit=0;
 // Remote control
-const int JVC_ADDRESS = 0xF1;
+const int JVC_ADDRESS = 0x8F;
 //const int JVC_ADDRESS = 0x0F;
 const int JVC_VOLP = 0x21;
 const int JVC_VOLM = 0xA1;
@@ -108,7 +108,7 @@ void preamble(){
 
 void sendCode (unsigned long code) {
 	TCNT0=0;
-	for (int Bit=7; Bit>-1; Bit--) {
+	for (int Bit=0; Bit<8; Bit++) {
 		if (code & (unsigned long)(1<<Bit)) {
 			OCR0A=255;
 			OCR0B=80;
