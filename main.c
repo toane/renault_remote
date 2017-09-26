@@ -16,7 +16,7 @@
 #define REMOTE_YELLOW PB4
 #define DAMPSIZE 16
 
-void sendCode(unsigned long code);
+void sendCode(uint16_t code);
 void pulse(int carrier, int gap);
 void preamble();
 void transmit(uint8_t address,uint8_t code);
@@ -45,8 +45,8 @@ uint8_t  turnDirection=0;//is given a control code when detecting a wheel moveme
 
 volatile uint8_t emit=0;
 // Remote control
-const int JVC_ADDRESS = 0x8F;
-//const int JVC_ADDRESS = 0x0F;
+const int JVC_ADDRESS = 0xF1;
+//const int JVC_ADDRESS = 0xF1;
 const int JVC_VOLP = 0x21;
 const int JVC_VOLM = 0xA1;
 const int JVC_MUTE = 0x71;
@@ -57,17 +57,12 @@ const int JVC_R = 0xC9;
 void setup() {
 	//LEDS
 	DDRB |= _BV(PB1);//PB1 en sortie,
-	//PORTB &= ~_BV(PB1);//PB1  inactif
 
 	DDRB &=~ _BV(REMOTE_BROWN);
 	REMOTEPORT|= _BV(REMOTE_BROWN);//pull up sur PB3 (marron, contact commun molette)
 	sei();
-	//setupPCM();
-	//set_sleep_mode(SLEEP_MODE_PWR_DOWN);
-	//ADCSRA &= ~(1<<ADEN);
 	//watchdog configuration
 	WDTCR |= (1<<WDIE);//generate interrupt after each time out
-
 }
 
 /*
@@ -83,14 +78,7 @@ void preamble(){
  */
 
 void setupPCM () {
-	//TCCR0B = 1<<CS01;  // prescaler 8
-	//TCCR0A = 1<<COM0B0 |1<<WGM01; // CTC Mode, toggle OC0B on compare match
-
-	//TCCR0B = (1<<CS01) | (1<<FOC0B);
-	//TCCR0A = (1<<COM0B1) |(1<<WGM01); //CTC Mode, Clear OC0B on compare match
-	//TIFR = (1<<OCF0A);
-
-	//fast pwm method
+	//fast pwm, non inverting, prescaler 8
 	TCCR0A = (1<<WGM01)| (1<<WGM00)|(1<<COM0B1);
 	TCCR0B = (1<<WGM02)|( 1<<CS01);
 }
@@ -106,10 +94,10 @@ void preamble(){
 	_delay_us(4000);
 }
 
-void sendCode (unsigned long code) {
+void sendCode (uint16_t code) {
 	TCNT0=0;
-	for (int Bit=0; Bit<8; Bit++) {
-		if (code & (unsigned long)(1<<Bit)) {
+	for (int Bit=17; Bit>-1; Bit--) {//weird loop indexes
+		if (code & (uint16_t)(1<<Bit)) {
 			OCR0A=255;
 			OCR0B=80;
 		}
@@ -120,13 +108,16 @@ void sendCode (unsigned long code) {
 		do ; while ((TIFR & 1<<OCF0B) == 0);
 		TIFR = 1<<OCF0B;
 	}
+	//signal d'arret (impulsion courte)
+	OCR0A=130;
+	OCR0B=80;
+	do ; while ((TIFR & 1<<OCF0B) == 0);
+	TIFR = 1<<OCF0B;
 }
 
 void transmit(uint8_t address,uint8_t code){
 	setupPCM();
-	//sendCode(code+(address<<8));
-	//sendCode(0x00+(JVC_ADDRESS<<8));
-	sendCode((unsigned long) JVC_ADDRESS);
+	sendCode((JVC_ADDRESS<<8)+code);
 	stopPCM();
 }
 
