@@ -1,3 +1,4 @@
+#define F_CPU 1000000UL
 #include <avr/io.h>
 #include <util/delay.h>
 #include <avr/interrupt.h>
@@ -78,7 +79,7 @@ void preamble(){
  */
 
 void setupPCM () {
-	//fast pwm, non inverting, prescaler 8
+	//fast pwm, non inverting, prescaler 64
 	TCCR0A = (1<<WGM01)| (1<<WGM00)|(1<<COM0B1);
 	TCCR0B = (1<<WGM02)|( 1<<CS01);
 }
@@ -89,13 +90,23 @@ void stopPCM () {
 
 void preamble(){
 	PORTB |=_BV(PB1);
-	_delay_us(8500);
+	_delay_us(8600);
 	PORTB &=~_BV(PB1);
-	_delay_us(4000);
+	_delay_us(3100);
 }
 
 void sendCode (uint16_t code) {
 	TCNT0=0;
+	/*
+	//preamble pulse (8.5ms high, 4.1ms low)
+	//prescaler 64: 0 -> 132 in 8.5ms, 0 -> 64 in 4.1ms
+	OCR0A=196;
+	OCR0B=132;
+	do ; while ((TIFR & 1<<OCF0B) == 0);
+	TIFR = 1<<OCF0B;
+	//set prescaler to 8
+	TCCR0B = (1<<WGM02)|( 1<<CS01);
+*/
 	for (int Bit=17; Bit>-1; Bit--) {//weird loop indexes
 		if (code & (uint16_t)(1<<Bit)) {
 			OCR0A=255;
@@ -116,6 +127,7 @@ void sendCode (uint16_t code) {
 }
 
 void transmit(uint8_t address,uint8_t code){
+	preamble();
 	setupPCM();
 	sendCode((JVC_ADDRESS<<8)+code);
 	stopPCM();
