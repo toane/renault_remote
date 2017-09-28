@@ -34,9 +34,6 @@ uint8_t volm_history=0;
 uint8_t src1_history=0;
 
 //wheel switch
-
-/*const uint8_t RIGHT=1;
-const uint8_t LEFT=2;*/
 const uint8_t PRSJ=0x00;
 const uint8_t PRSB=0x01;
 const uint8_t PRSV=0x02;
@@ -45,9 +42,8 @@ uint8_t  turnDirection=0;//is given a control code when detecting a wheel moveme
 //0x01: mute,0x02:volp, 0x04:volm
 
 volatile uint8_t emit=0;
-// Remote control
+//Command constants
 const int JVC_ADDRESS = 0xF1;
-//const int JVC_ADDRESS = 0xF1;
 const int JVC_VOLP = 0x21;
 const int JVC_VOLM = 0xA1;
 const int JVC_MUTE = 0x71;
@@ -56,7 +52,6 @@ const int JVC_F = 0x49;
 const int JVC_R = 0xC9;
 
 void setup() {
-	//LEDS
 	DDRB |= _BV(PB1);//PB1 en sortie,
 
 	DDRB &=~ _BV(REMOTE_BROWN);
@@ -66,20 +61,8 @@ void setup() {
 	WDTCR |= (1<<WDIE);//generate interrupt after each time out
 }
 
-/*
-void preamble(){
-	TCNT0=0;
-	TCCR0B = 1<<CS01 | 1 << CS00;  // prescaler 64
-	TCCR0A = 1<<COM0B0 |1<<WGM01;
-	OCR0A=134;
-	do ; while ((TIFR & 1<<OCF0A) == 0);
-	TIFR = 1<<OCF0A;
-	OCR0A = 64;
-}
- */
-
 void setupPCM () {
-	//fast pwm, non inverting, prescaler 64
+	//fast pwm, non inverting, prescaler 8
 	TCCR0A = (1<<WGM01)| (1<<WGM00)|(1<<COM0B1);
 	TCCR0B = (1<<WGM02)|( 1<<CS01);
 }
@@ -97,16 +80,6 @@ void preamble(){
 
 void sendCode (uint16_t code) {
 	TCNT0=0;
-	/*
-	//preamble pulse (8.5ms high, 4.1ms low)
-	//prescaler 64: 0 -> 132 in 8.5ms, 0 -> 64 in 4.1ms
-	OCR0A=196;
-	OCR0B=132;
-	do ; while ((TIFR & 1<<OCF0B) == 0);
-	TIFR = 1<<OCF0B;
-	//set prescaler to 8
-	TCCR0B = (1<<WGM02)|( 1<<CS01);
-*/
 	for (int Bit=17; Bit>-1; Bit--) {//weird loop indexes
 		if (code & (uint16_t)(1<<Bit)) {
 			OCR0A=255;
@@ -225,18 +198,18 @@ uint8_t read_btn(uint8_t  curbtn){
 		ret= ((REMOTEPIN & (1<<REMOTE_YELLOW)) == 0);//si rouge a 1 et yellow a 0 -> yellow a la masse-> source 1 presse
 	}
 
+	//test if wheel in brown-yellow position (PRSJ)
 	REMOTEDDR |=_BV(REMOTE_YELLOW);//PB4 en sortie
 	REMOTEDDR |=_BV(REMOTE_BLUE);//PB2 en sortie
-
 	REMOTEPORT &=~_BV(REMOTE_YELLOW);//PB4 a 0
 	REMOTEPORT |=_BV(REMOTE_BLUE);//PB2 a 1
 	nop();nop();
-
 	if ((REMOTEPIN & (1<<REMOTE_BROWN)) == 0 ){
 		updateWheel(PRSJ);
 		rotPosPRSV=0;
 	}
 
+	//test if wheel in brown-blue position (PRSB)
 	REMOTEPORT &=~_BV(REMOTE_BLUE);//PB2 a 0
 	REMOTEPORT |=_BV(REMOTE_YELLOW);//PB4 a 1
 	nop();nop();
@@ -295,16 +268,17 @@ ISR (WDT_vect){
 	}
 
 	if (debounce(&mute_history,0x01)==1){
-		emit=JVC_VOLM;
-	}
-
-	if (debounce(&volm_history,0x04)==1){
 		emit=JVC_MUTE;
 	}
 
+	if (debounce(&volm_history,0x04)==1){
+		emit=JVC_VOLM;
+	}
+/*
 	if (debounce(&src1_history,0x05)==1){
 		emit=JVC_SRC1;
 	}
+*/
 
 }
 
