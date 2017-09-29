@@ -6,7 +6,6 @@
 #define nop() __asm__ __volatile__ ("nop \n\t")
 
 //PWM code from http://www.technoblogy.com/show?VFT
-
 //Wired remote settings
 #define REMOTEPORT PORTB
 #define REMOTEDDR DDRB
@@ -37,19 +36,18 @@ uint8_t src1_history=0;
 const uint8_t PRSJ=0x00;
 const uint8_t PRSB=0x01;
 const uint8_t PRSV=0x02;
-uint8_t  turnDirection=0;//is given a control code when detecting a wheel movement in either direction (JVC_R or JVC_F )
-
-//0x01: mute,0x02:volp, 0x04:volm
-
+volatile uint8_t  turnDirection=0;//is given a control code when detecting a wheel movement in either direction (JVC_R or JVC_F )
 volatile uint8_t emit=0;
+
 //Command constants
 const int JVC_ADDRESS = 0xF1;
 const int JVC_VOLP = 0x21;
 const int JVC_VOLM = 0xA1;
 const int JVC_MUTE = 0x71;
-const int JVC_SRC1 = 0xFF;//0x11;//TODO
+const int JVC_SRC1 = 0xA9;//==JVC_DOWN (cycling through sources ?)
 const int JVC_F = 0x49;
 const int JVC_R = 0xC9;
+
 
 void setup() {
 	DDRB |= _BV(PB1);//PB1 en sortie,
@@ -89,7 +87,10 @@ void sendCode (uint16_t code) {
 			OCR0A=130;
 			OCR0B=80;
 		};
+		//wait for TIFR:OCF0B==1
+		//The OCF0B bit is set when a Compare Match occurs between the Timer/Counter and the data in OCR0B
 		do ; while ((TIFR & 1<<OCF0B) == 0);
+		//clear OCF0B by writing a 1
 		TIFR = 1<<OCF0B;
 	}
 	//signal d'arret (impulsion courte)
@@ -274,11 +275,10 @@ ISR (WDT_vect){
 	if (debounce(&volm_history,0x04)==1){
 		emit=JVC_VOLM;
 	}
-/*
+
 	if (debounce(&src1_history,0x05)==1){
 		emit=JVC_SRC1;
 	}
-*/
 
 }
 
