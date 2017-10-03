@@ -40,13 +40,13 @@ volatile uint8_t  turnDirection=0;//is given a control code when detecting a whe
 volatile uint8_t emit=0;
 
 //Command constants
-const int JVC_ADDRESS = 0xF1;
-const int JVC_VOLP = 0x21;
-const int JVC_VOLM = 0xA1;
-const int JVC_MUTE = 0x71;
-const int JVC_SRC1 = 0xA9;//==JVC_DOWN (cycling through sources ?)
-const int JVC_F = 0x49;
-const int JVC_R = 0xC9;
+const uint8_t JVC_ADDRESS = 0xF1;
+const uint8_t JVC_VOLP = 0x21;
+const uint8_t JVC_VOLM = 0xA1;
+const uint8_t JVC_MUTE = 0x71;
+const uint8_t JVC_SRC1 = 0xA9;//==JVC_DOWN (cycling through sources ?)
+const uint8_t JVC_F = 0x49;
+const uint8_t JVC_R = 0xC9;
 
 
 void setup() {
@@ -57,6 +57,7 @@ void setup() {
 	sei();
 	//watchdog configuration
 	WDTCR |= (1<<WDIE);//generate interrupt after each time out
+	//TCNT0=0;
 }
 
 void setupPCM () {
@@ -79,7 +80,9 @@ void preamble(){
 void sendCode (uint16_t code) {
 	TCNT0=0;
 	for (int Bit=17; Bit>-1; Bit--) {//weird loop indexes
-		if (code & (uint16_t)(1<<Bit)) {
+	//for (uint16_t Bit=0x0001;Bit;Bit=Bit<<1){
+		if (code & (1<<Bit)) {
+		//if (code & Bit) {
 			OCR0A=255;
 			OCR0B=80;
 		}
@@ -93,7 +96,7 @@ void sendCode (uint16_t code) {
 		//clear OCF0B by writing a 1
 		TIFR = 1<<OCF0B;
 	}
-	//signal d'arret (impulsion courte)
+	//stop bit (short pulse)
 	OCR0A=130;
 	OCR0B=80;
 	do ; while ((TIFR & 1<<OCF0B) == 0);
