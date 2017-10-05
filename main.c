@@ -40,6 +40,7 @@ volatile uint8_t  turnDirection=0;//is given a control code when detecting a whe
 volatile uint8_t emit=0;
 
 //Command constants
+
 const uint8_t JVC_ADDRESS = 0xF1;
 const uint8_t JVC_VOLP = 0x21;
 const uint8_t JVC_VOLM = 0xA1;
@@ -79,10 +80,21 @@ void preamble(){
 
 void sendCode (uint16_t code) {
 	TCNT0=0;
-	for (int Bit=17; Bit>-1; Bit--) {//weird loop indexes
-	//for (uint16_t Bit=0x0001;Bit;Bit=Bit<<1){
-		if (code & (1<<Bit)) {
-		//if (code & Bit) {
+
+	OCR0A=0;
+	OCR0B=0;
+	do ; while ((TIFR & 1<<OCF0B) == 0);
+	TIFR = 1<<OCF0B;
+
+	OCR0A=0;
+	OCR0B=0;
+	do ; while ((TIFR & 1<<OCF0B) == 0);
+	TIFR = 1<<OCF0B;
+
+	//for (int Bit=17; Bit>-1; Bit--) {//weird loop indexes
+		for (uint16_t Bit=0x8000;Bit;Bit=Bit>>1){
+		//if (code & (1<<Bit)) {
+			if (code & Bit) {
 			OCR0A=255;
 			OCR0B=80;
 		}
@@ -91,7 +103,8 @@ void sendCode (uint16_t code) {
 			OCR0B=80;
 		};
 		//wait for TIFR:OCF0B==1
-		//The OCF0B bit is set when a Compare Match occurs between the Timer/Counter and the data in OCR0B
+		//The OCF0B bit is set when a Compare Match occurs between the Timer/Counter
+		//and the data in OCR0B
 		do ; while ((TIFR & 1<<OCF0B) == 0);
 		//clear OCF0B by writing a 1
 		TIFR = 1<<OCF0B;
@@ -101,6 +114,7 @@ void sendCode (uint16_t code) {
 	OCR0B=80;
 	do ; while ((TIFR & 1<<OCF0B) == 0);
 	TIFR = 1<<OCF0B;
+
 }
 
 void transmit(uint8_t address,uint8_t code){
