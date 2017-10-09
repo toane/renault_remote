@@ -7,3 +7,5 @@ MUTE
 SOURCE CYCLE
 FORWARD
 BACKWARD
+
+![Circuit schematic](circuit_schematic.png)
