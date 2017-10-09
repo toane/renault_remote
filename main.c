@@ -62,7 +62,7 @@ void setup() {
 }
 
 void setupPCM () {
-	//fast pwm, non inverting, prescaler 8
+	//fast pwm, non inverting, TOP=OCR0A, prescaler 8
 	TCCR0A = (1<<WGM01)| (1<<WGM00)|(1<<COM0B1);
 	TCCR0B = (1<<WGM02)|( 1<<CS01);
 }
@@ -71,15 +71,29 @@ void stopPCM () {
 	TCCR0A =0;
 }
 
+
 void preamble(){
+	//fast pwm, non inverting, TOP=OCR0A, prescaler 64
+	/*
+	TCCR0A = (1<<WGM01)| (1<<WGM00)|(1<<COM0B1);
+	TCCR0B = (1<<WGM02)|( 1<<CS01)|(1<<CS00);
+	TCNT0=0;
+	OCR0A=255;
+	OCR0B=80;
+	do ; while ((TIFR & 1<<OCF0B) == 0);
+	TIFR = 1<<OCF0B;
+	TCCR0A=0;
+	*/
 	PORTB |=_BV(PB1);
 	_delay_us(8600);
 	PORTB &=~_BV(PB1);
 	_delay_us(3100);
+
 }
 
 void sendCode (uint16_t code) {
 	TCNT0=0;
+	//busywork
 
 	OCR0A=0;
 	OCR0B=0;
@@ -91,10 +105,8 @@ void sendCode (uint16_t code) {
 	do ; while ((TIFR & 1<<OCF0B) == 0);
 	TIFR = 1<<OCF0B;
 
-	//for (int Bit=17; Bit>-1; Bit--) {//weird loop indexes
-		for (uint16_t Bit=0x8000;Bit;Bit=Bit>>1){
-		//if (code & (1<<Bit)) {
-			if (code & Bit) {
+	for (uint16_t Bit=0x8000;Bit;Bit=Bit>>1){
+		if (code & Bit) {
 			OCR0A=255;
 			OCR0B=80;
 		}
@@ -118,10 +130,12 @@ void sendCode (uint16_t code) {
 }
 
 void transmit(uint8_t address,uint8_t code){
+	cli();//disabling interrupts
 	preamble();
 	setupPCM();
 	sendCode((JVC_ADDRESS<<8)+code);
 	stopPCM();
+	sei();//re-enabling interrupts
 }
 
 /**
@@ -263,6 +277,7 @@ int main() {
 	//CLKPR = 0x80;
 	//CLKPR = 1 ;  // presc 2
 	setup();
+	transmit(JVC_ADDRESS,JVC_ADDRESS);
 	uint8_t dir =0;
 	while(1){
 		if (emit>0){
