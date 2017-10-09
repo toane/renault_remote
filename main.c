@@ -45,9 +45,9 @@ const uint8_t JVC_ADDRESS = 0xF1;
 const uint8_t JVC_VOLP = 0x21;
 const uint8_t JVC_VOLM = 0xA1;
 const uint8_t JVC_MUTE = 0x71;
-const uint8_t JVC_SRC1 = 0xA9;//==JVC_DOWN (cycling through sources ?)
-const uint8_t JVC_F = 0x49;
-const uint8_t JVC_R = 0xC9;
+const uint8_t JVC_SRC1 = 0x11;//Source cycle
+const uint8_t JVC_F = 0xC9;
+const uint8_t JVC_R = 0x49;
 
 
 void setup() {
@@ -220,7 +220,7 @@ uint8_t read_btn(uint8_t  curbtn){
 		nop();nop();nop();nop(); //nops make sure the ports have time to settle to their new state before testing
 		ret= ((REMOTEPIN & (1<<REMOTE_YELLOW)) == 0);//lecture de PB4 WHAT IT THIS TODO
 		//ret= ((REMOTEPIN & _BV(REMOTE_RED)) == 0);//lecture de PB4 WHAT IT THIS TODO
-	} else if (curbtn==0x03){
+	} else if (curbtn==0x05){
 		//poll Source 1
 		REMOTEDDR |=_BV(REMOTE_RED);
 		REMOTEPORT |=_BV(REMOTE_RED);//rouge a 1
@@ -277,6 +277,8 @@ int main() {
 	//CLKPR = 0x80;
 	//CLKPR = 1 ;  // presc 2
 	setup();
+	//first transmission after startup is mangled so
+	//we send a bogus command and get it over with
 	transmit(JVC_ADDRESS,JVC_ADDRESS);
 	uint8_t dir =0;
 	while(1){
@@ -311,7 +313,6 @@ ISR (WDT_vect){
 	if (debounce(&src1_history,0x05)==1){
 		emit=JVC_SRC1;
 	}
-
 }
 
 /*Why not use fast PWM mode instead, since it has well defined levels, instead o toggle and messing around with force output compare?
