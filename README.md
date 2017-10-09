@@ -1,1 +1,9 @@
-Circuit and polling code to read button and wheel switch events from a Renault wired stereo remote on an ATtiny85
+Circuit and code to convert button presses on a generic wired Renault remote to commands for an aftermarket JVC car stereo, using an ATtiny85.
+
+Supports:
+VOLUME UP
+VOLUME DOWN
+MUTE
+SOURCE CYCLE
+FORWARD
+BACKWARD
