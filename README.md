@@ -1,10 +1,10 @@
 Circuit and code to convert button presses on a generic wired Renault remote to commands for an aftermarket JVC car stereo, using an ATtiny85.
 
 Supports:
-VOLUME UP
-VOLUME DOWN
+VOLUME_UP
+VOLUME_DOWN
 MUTE
-SOURCE CYCLE
+SOURCE_CYCLE
 FORWARD
 BACKWARD
 

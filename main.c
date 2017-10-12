@@ -24,8 +24,9 @@ uint8_t checkEqualValues(unsigned char *arr,int size);
 void updateWheel(uint8_t val);
 uint8_t  read_btn(uint8_t);
 uint8_t debounce(uint8_t  *button_history,uint8_t);
-void setupPCM () ;
-void stopPCM () ;
+void setupPWM () ;
+void stopPWM () ;
+void check_inputs_fn(void);
 
 uint8_t mute_history=0;
 uint8_t volp_history=0;
@@ -38,6 +39,7 @@ const uint8_t PRSB=0x01;
 const uint8_t PRSV=0x02;
 volatile uint8_t  turnDirection=0;//is given a control code when detecting a wheel movement in either direction (JVC_R or JVC_F )
 volatile uint8_t emit=0;
+volatile uint8_t check_inputs = 0;
 
 //Command constants
 
@@ -45,7 +47,7 @@ const uint8_t JVC_ADDRESS = 0xF1;
 const uint8_t JVC_VOLP = 0x21;
 const uint8_t JVC_VOLM = 0xA1;
 const uint8_t JVC_MUTE = 0x71;
-const uint8_t JVC_SRC1 = 0x11;//Source cycle
+const uint8_t JVC_SRC1 = 0x11;
 const uint8_t JVC_F = 0xC9;
 const uint8_t JVC_R = 0x49;
 
@@ -56,44 +58,31 @@ void setup() {
 	DDRB &=~ _BV(REMOTE_BROWN);
 	REMOTEPORT|= _BV(REMOTE_BROWN);//pull up sur PB3 (marron, contact commun molette)
 	sei();
+	//AVR Manual: WDT Timeout is 4 or 64 ms
 	//watchdog configuration
 	WDTCR |= (1<<WDIE);//generate interrupt after each time out
 	//TCNT0=0;
 }
 
-void setupPCM () {
-	//fast pwm, non inverting, TOP=OCR0A, prescaler 8
+void setupPWM () {
+	//fast pwm, non inverting, prescaler 8
 	TCCR0A = (1<<WGM01)| (1<<WGM00)|(1<<COM0B1);
 	TCCR0B = (1<<WGM02)|( 1<<CS01);
 }
 
-void stopPCM () {
+void stopPWM () {
 	TCCR0A =0;
 }
 
-
 void preamble(){
-	//fast pwm, non inverting, TOP=OCR0A, prescaler 64
-	/*
-	TCCR0A = (1<<WGM01)| (1<<WGM00)|(1<<COM0B1);
-	TCCR0B = (1<<WGM02)|( 1<<CS01)|(1<<CS00);
-	TCNT0=0;
-	OCR0A=255;
-	OCR0B=80;
-	do ; while ((TIFR & 1<<OCF0B) == 0);
-	TIFR = 1<<OCF0B;
-	TCCR0A=0;
-	*/
 	PORTB |=_BV(PB1);
 	_delay_us(8600);
 	PORTB &=~_BV(PB1);
 	_delay_us(3100);
-
 }
 
 void sendCode (uint16_t code) {
 	TCNT0=0;
-	//busywork
 
 	OCR0A=0;
 	OCR0B=0;
@@ -105,8 +94,10 @@ void sendCode (uint16_t code) {
 	do ; while ((TIFR & 1<<OCF0B) == 0);
 	TIFR = 1<<OCF0B;
 
-	for (uint16_t Bit=0x8000;Bit;Bit=Bit>>1){
-		if (code & Bit) {
+	//for (int Bit=17; Bit>-1; Bit--) {//weird loop indexes
+		for (uint16_t Bit=0x8000;Bit;Bit=Bit>>1){
+		//if (code & (1<<Bit)) {
+			if (code & Bit) {
 			OCR0A=255;
 			OCR0B=80;
 		}
@@ -130,12 +121,12 @@ void sendCode (uint16_t code) {
 }
 
 void transmit(uint8_t address,uint8_t code){
-	cli();//disabling interrupts
+	cli();
 	preamble();
-	setupPCM();
-	sendCode((JVC_ADDRESS<<8)+code);
-	stopPCM();
-	sei();//re-enabling interrupts
+	setupPWM();
+	sendCode((address<<8)+code);
+	stopPWM();
+	sei();
 }
 
 /**
@@ -218,9 +209,8 @@ uint8_t read_btn(uint8_t  curbtn){
 		REMOTEDDR |=_BV(REMOTE_RED);
 		REMOTEPORT &=~_BV(REMOTE_RED);
 		nop();nop();nop();nop(); //nops make sure the ports have time to settle to their new state before testing
-		ret= ((REMOTEPIN & (1<<REMOTE_YELLOW)) == 0);//lecture de PB4 WHAT IT THIS TODO
-		//ret= ((REMOTEPIN & _BV(REMOTE_RED)) == 0);//lecture de PB4 WHAT IT THIS TODO
-	} else if (curbtn==0x05){
+		ret= ((REMOTEPIN & (1<<REMOTE_YELLOW)) == 0);
+	} else if (curbtn==0x03){
 		//poll Source 1
 		REMOTEDDR |=_BV(REMOTE_RED);
 		REMOTEPORT |=_BV(REMOTE_RED);//rouge a 1
@@ -277,27 +267,41 @@ int main() {
 	//CLKPR = 0x80;
 	//CLKPR = 1 ;  // presc 2
 	setup();
-	//first transmission after startup is mangled so
-	//we send a bogus command and get it over with
-	transmit(JVC_ADDRESS,JVC_ADDRESS);
+	//the first command comes out mangled so we send a bogus message
+	//to get it over with
+	transmit(0x00,0x00);
 	uint8_t dir =0;
 	while(1){
-		if (emit>0){
-			dir=emit;
-			emit=0;
-			transmit(JVC_ADDRESS,dir);
-		}
+		cli();
+		if(check_inputs){
+			sei();
+			check_inputs_fn();
+			if (emit>0){
+				dir=emit;
+				emit=0;
+				transmit(JVC_ADDRESS,dir);
+				transmit(JVC_ADDRESS,dir);
+			}
 
-		if (turnDirection>0){
-			dir=turnDirection;
-			turnDirection=0;
-			transmit(JVC_ADDRESS,dir);
+			if (turnDirection>0){
+				dir=turnDirection;
+				turnDirection=0;
+				transmit(JVC_ADDRESS,dir);
+				transmit(JVC_ADDRESS,dir);
+			}
+			cli();	//Not sure if this is truly necessary.  We might be able to just
+				//Treat check_inputs as a boolean (and change the ISR respectively)
+			check_inputs = check_inputs == 0 ? 0 : check_inputs-1;
+			sei();
 		}
-
+		else{
+			sei();
+		}
 	}
 }
 
-ISR (WDT_vect){
+void check_inputs_fn(void)
+{
 	if (debounce(&volp_history,0x02)==1){
 		emit=JVC_VOLP;
 	}
@@ -309,18 +313,13 @@ ISR (WDT_vect){
 	if (debounce(&volm_history,0x04)==1){
 		emit=JVC_VOLM;
 	}
-
-	if (debounce(&src1_history,0x05)==1){
+/*
+	if (debounce(&src1_history,0x03)==1){
 		emit=JVC_SRC1;
 	}
+*/
 }
 
-/*Why not use fast PWM mode instead, since it has well defined levels, instead o toggle and messing around with force output compare?
- *Moreover, in PWM modes the OCR0A and B registers are buffered, so you can load the values for the next pulse at any time.
-
-That is, set fast PWM with OCR0A as TOP in non-inverted mode,
-and changing the pin on match with OCR0B.
-Load OCR0A with low+high, and OCR0B with high.
-Update OCR0A and B with the next bit values on compare match with OCR0B.
-These will be buffered and auto-loaded on terminal count.
- */
+ISR (WDT_vect){
+	check_inputs++;
+}
