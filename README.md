@@ -1,4 +1,4 @@
-Circuit and code to convert button presses on a generic wired Renault remote to commands for an aftermarket JVC car stereo, using an ATtiny85.
+Circuit and code to convert button presses on a generic wired Renault remote to commands for an aftermarket JVC car stereo, using an ATtiny85 or an ATmega88.
 
 Supports:
 VOLUME_UP
@@ -8,4 +8,5 @@ SOURCE_CYCLE
 FORWARD
 BACKWARD
 
-![Circuit schematic](circuit_schematic.png)
+![Circuit schematic for ATtiny85](circuit_schematic_attiny.png)
+![Circuit schematic for ATmega88](circuit_schematic_atmega.png)
