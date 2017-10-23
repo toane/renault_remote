@@ -11,7 +11,6 @@
 #define REMOTEDDR DDRB
 #define REMOTEPIN PINB
 #define REMOTE_RED PB0
-#define REMOTE_GREEN PB1
 #define REMOTE_BLUE PB2
 #define REMOTE_BROWN PB3
 #define REMOTE_YELLOW PB4
@@ -29,12 +28,10 @@ void setupPWM () ;
 void stopPWM () ;
 void check_inputs_fn(void);
 
-//history variables for each button, used for debouncing
 uint8_t mute_history=0;
 uint8_t volp_history=0;
 uint8_t volm_history=0;
-uint8_t src_history=0;
-uint8_t load_history=0;
+uint8_t src1_history=0;
 
 //wheel switch
 const uint8_t PRSJ=0x00;
@@ -51,20 +48,19 @@ const uint8_t JVC_VOLP = 0x21;
 const uint8_t JVC_VOLM = 0xA1;
 const uint8_t JVC_MUTE = 0x71;
 const uint8_t JVC_SRC1 = 0x11;
-const uint8_t JVC_EQUALIZER = 0xB1;
 const uint8_t JVC_F = 0xC9;
 const uint8_t JVC_R = 0x49;
 
 
 void setup() {
-	DDRD |= _BV(PD5);//PD5 (OC0B) en sortie,
+	DDRB |= _BV(PB1);//PB1 en sortie,
 
 	DDRB &=~ _BV(REMOTE_BROWN);
 	REMOTEPORT|= _BV(REMOTE_BROWN);//pull up sur PB3 (marron, contact commun molette)
 	sei();
 	//AVR Manual: WDT Timeout is 4 or 64 ms
 	//watchdog configuration
-	WDTCSR |= (1<<WDIE);//generate interrupt after each time out
+	WDTCR |= (1<<WDIE);//generate interrupt after each time out
 	//TCNT0=0;
 }
 
@@ -79,9 +75,9 @@ void stopPWM () {
 }
 
 void preamble(){
-	PORTD |=_BV(PD5);
+	PORTB |=_BV(PB1);
 	_delay_us(8600);
-	PORTD &=~_BV(PD5);
+	PORTB &=~_BV(PB1);
 	_delay_us(3100);
 }
 
@@ -90,16 +86,17 @@ void sendCode (uint16_t code) {
 
 	OCR0A=0;
 	OCR0B=0;
-	do ; while ((TIFR0 & 1<<OCF0B) == 0);
-	TIFR0 = 1<<OCF0B;
+	do ; while ((TIFR & 1<<OCF0B) == 0);
+	TIFR = 1<<OCF0B;
 
 	OCR0A=0;
 	OCR0B=0;
-	do ; while ((TIFR0 & 1<<OCF0B) == 0);
-	TIFR0 = 1<<OCF0B;
+	do ; while ((TIFR & 1<<OCF0B) == 0);
+	TIFR = 1<<OCF0B;
 
 	for (uint16_t Bit=0x8000;Bit;Bit=Bit>>1){
-		if (code & Bit) {
+		//if (code & (1<<Bit)) {
+			if (code & Bit) {
 			OCR0A=255;
 			OCR0B=80;
 		}
@@ -110,15 +107,15 @@ void sendCode (uint16_t code) {
 		//wait for TIFR:OCF0B==1
 		//The OCF0B bit is set when a Compare Match occurs between the Timer/Counter
 		//and the data in OCR0B
-		do ; while ((TIFR0 & 1<<OCF0B) == 0);
+		do ; while ((TIFR & 1<<OCF0B) == 0);
 		//clear OCF0B by writing a 1
-		TIFR0 = 1<<OCF0B;
+		TIFR = 1<<OCF0B;
 	}
 	//stop bit (short pulse)
 	OCR0A=130;
 	OCR0B=80;
-	do ; while ((TIFR0 & 1<<OCF0B) == 0);
-	TIFR0 = 1<<OCF0B;
+	do ; while ((TIFR & 1<<OCF0B) == 0);
+	TIFR = 1<<OCF0B;
 
 }
 
@@ -179,6 +176,7 @@ void updateWheel(uint8_t poscode){
 
 		default:turnDirection=0;//in doubt, do nothing
 		}
+		//emit=turnDirection;;
 	}
 }
 
@@ -188,6 +186,7 @@ void updateWheel(uint8_t poscode){
  */
 uint8_t read_btn(uint8_t  curbtn){
 	uint8_t ret=0x00;
+	uint8_t rotPosPRSV=PRSV;//toggled to 0 if wheel switch in PRSJ or PRSB position
 	if (curbtn==0x01){
 		//poll Mute
 		REMOTEDDR &=~_BV(REMOTE_BLUE);//PB2 en entree
@@ -211,59 +210,39 @@ uint8_t read_btn(uint8_t  curbtn){
 		nop();nop();nop();nop(); //nops make sure the ports have time to settle to their new state before testing
 		ret= ((REMOTEPIN & (1<<REMOTE_YELLOW)) == 0);
 	} else if (curbtn==0x03){
-		//poll Source 1 and Source 2 (either yellow-ground or green-ground, read yellow)
+		//poll Source 1
 		REMOTEDDR |=_BV(REMOTE_RED);
-		REMOTEPORT |=_BV(REMOTE_RED);//PB0(red) up to distinguish with vol-
-
-		REMOTEDDR &=~_BV(REMOTE_GREEN);
-		REMOTEPORT |=_BV(REMOTE_GREEN);//pull up sur PB1(green)
-
+		REMOTEPORT |=_BV(REMOTE_RED);//rouge a 1
 		REMOTEDDR &=~_BV(REMOTE_YELLOW);
-		REMOTEPORT |=_BV(REMOTE_YELLOW);//pull up sur PB3(yellow)
+		REMOTEPORT |=~_BV(REMOTE_YELLOW);//inchangé
 		nop();nop();nop();nop();
-		ret= (( (REMOTEPIN & (1<<REMOTE_YELLOW)) == 0)|((REMOTEPIN & (1<<REMOTE_GREEN)) == 0)) ;
-	} else if (curbtn==0x05){
-		//bouton load (green-red)
-		REMOTEDDR |=_BV(REMOTE_GREEN);//PB1 en sortie
-		REMOTEPORT &=~_BV(REMOTE_GREEN);//PB1 a 0
-		REMOTEDDR &=~_BV(REMOTE_RED);//PB0 en entree
-		REMOTEPORT |=_BV(REMOTE_RED);//pull up sur PB0
-		nop();nop();nop();nop();
-		ret= ( (REMOTEPIN & (1<<REMOTE_RED)) == 0 );//lecture de PB0
+		ret= ((REMOTEPIN & (1<<REMOTE_YELLOW)) == 0);//si rouge a 1 et yellow a 0 -> yellow a la masse-> source 1 presse
 	}
 
-	//PB1,PB2 and PB4 all become outputs
+	//test if wheel in brown-yellow position (PRSJ)
 	REMOTEDDR |=_BV(REMOTE_YELLOW);//PB4 en sortie
 	REMOTEDDR |=_BV(REMOTE_BLUE);//PB2 en sortie
-	REMOTEDDR |=_BV(REMOTE_GREEN);//PB1 en sortie
-	//test if wheel in brown-yellow position (PRSJ)
-
 	REMOTEPORT &=~_BV(REMOTE_YELLOW);//PB4 a 0
-	REMOTEPORT |=_BV(REMOTE_GREEN);//PB1 a 1
 	REMOTEPORT |=_BV(REMOTE_BLUE);//PB2 a 1
 	nop();nop();
 	if ((REMOTEPIN & (1<<REMOTE_BROWN)) == 0 ){
 		updateWheel(PRSJ);
+		rotPosPRSV=0;
 	}
 
 	//test if wheel in brown-blue position (PRSB)
 	REMOTEPORT &=~_BV(REMOTE_BLUE);//PB2 a 0
-	REMOTEPORT |=_BV(REMOTE_GREEN);//PB1 a 1
 	REMOTEPORT |=_BV(REMOTE_YELLOW);//PB4 a 1
 	nop();nop();
 	if ((REMOTEPIN & (1<<REMOTE_BROWN)) == 0 ){
 		updateWheel(PRSB);
+		rotPosPRSV=0;
 	}
 
-	//test if wheel in brown-green position (PRSV)
-	REMOTEPORT &=~_BV(REMOTE_GREEN);//PB1 a 0
-	REMOTEPORT |=_BV(REMOTE_YELLOW);//PB4 a 1
-	REMOTEPORT |=_BV(REMOTE_BLUE);//PB2 a 1
-	nop();nop();
-	if ((REMOTEPIN & (1<<REMOTE_BROWN)) == 0 ){
+	//if wheel not in PRSB or PRSJ position we assume it's on the third position
+	if (rotPosPRSV==PRSV){
 		updateWheel(PRSV);
 	}
-
 	return ret;
 }
 
@@ -310,7 +289,7 @@ int main() {
 				transmit(JVC_ADDRESS,dir);
 			}
 			cli();	//Not sure if this is truly necessary.  We might be able to just
-			//Treat check_inputs as a boolean (and change the ISR respectively)
+				//Treat check_inputs as a boolean (and change the ISR respectively)
 			check_inputs = check_inputs == 0 ? 0 : check_inputs-1;
 			sei();
 		}
@@ -322,26 +301,22 @@ int main() {
 
 void check_inputs_fn(void)
 {
-	if (debounce(&mute_history,0x01)==1){
-		emit=JVC_MUTE;
-	}
-
 	if (debounce(&volp_history,0x02)==1){
 		emit=JVC_VOLP;
+	}
+
+	if (debounce(&mute_history,0x01)==1){
+		emit=JVC_MUTE;
 	}
 
 	if (debounce(&volm_history,0x04)==1){
 		emit=JVC_VOLM;
 	}
-
-	if (debounce(&src_history,0x03)==1){
+/*
+	if (debounce(&src1_history,0x03)==1){
 		emit=JVC_SRC1;
 	}
-
-	if (debounce(&load_history,0x05)==1){
-		emit=JVC_EQUALIZER;
-	}
-
+*/
 }
 
 ISR (WDT_vect){
