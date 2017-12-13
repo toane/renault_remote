@@ -5,8 +5,7 @@
 #include <avr/sleep.h>
 #define nop() __asm__ __volatile__ ("nop \n\t")
 
-//PWM code from http://www.technoblogy.com/show?VFT
-//Wired remote settings
+
 #define REMOTEPORT PORTB
 #define REMOTEDDR DDRB
 #define REMOTEPIN PINB
@@ -60,7 +59,7 @@ void setup() {
 	sei();
 	//AVR Manual: WDT Timeout is 4 or 64 ms
 	//watchdog configuration
-	WDTCR |= (1<<WDIE);//generate interrupt after each time out
+	WDTCR |= (1<<WDTIE);//generate interrupt after each time out
 	//TCNT0=0;
 }
 
@@ -86,13 +85,13 @@ void sendCode (uint16_t code) {
 
 	OCR0A=0;
 	OCR0B=0;
-	do ; while ((TIFR & 1<<OCF0B) == 0);
-	TIFR = 1<<OCF0B;
+	do ; while ((TIFR0 & 1<<OCF0B) == 0);
+	TIFR0 = 1<<OCF0B;
 
 	OCR0A=0;
 	OCR0B=0;
-	do ; while ((TIFR & 1<<OCF0B) == 0);
-	TIFR = 1<<OCF0B;
+	do ; while ((TIFR0 & 1<<OCF0B) == 0);
+	TIFR0 = 1<<OCF0B;
 
 	for (uint16_t Bit=0x8000;Bit;Bit=Bit>>1){
 		//if (code & (1<<Bit)) {
@@ -107,15 +106,15 @@ void sendCode (uint16_t code) {
 		//wait for TIFR:OCF0B==1
 		//The OCF0B bit is set when a Compare Match occurs between the Timer/Counter
 		//and the data in OCR0B
-		do ; while ((TIFR & 1<<OCF0B) == 0);
+		do ; while ((TIFR0 & 1<<OCF0B) == 0);
 		//clear OCF0B by writing a 1
-		TIFR = 1<<OCF0B;
+		TIFR0 = 1<<OCF0B;
 	}
 	//stop bit (short pulse)
 	OCR0A=130;
 	OCR0B=80;
-	do ; while ((TIFR & 1<<OCF0B) == 0);
-	TIFR = 1<<OCF0B;
+	do ; while ((TIFR0 & 1<<OCF0B) == 0);
+	TIFR0 = 1<<OCF0B;
 
 }
 
