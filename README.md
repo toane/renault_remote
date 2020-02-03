@@ -18,7 +18,30 @@ NEXT
 PREV
 ![Circuit schematic for ATtiny85](circuit_schematic_attiny.png)
 
+## Prerequisites
 
+```sh
+apt-get install avr-libc gcc-avr avrdude
+```
 
+### ATmega
 
+```sh
+# compile for ATmega
+make
+# flash to ATmega
+make flash
+```
 
+### ATtiny
+```sh
+# compile for ATtiny
+make tiny
+# flash to ATtiny
+make flashtiny
+```
+
+### clean workspace
+```sh
+$ make clean
+```
